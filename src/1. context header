@@ -1,0 +1,79 @@
+這是 HR SaaS 項目，React + Supabase。我在改 LeaveApplication.jsx（年假申請模塊），它會用到 supabaseClient.js 裡的 helper 和 useAuth hook。以下是相關代碼：[貼代碼]
+
+
+
+拆完之後每次找我，只需貼相關的 1-2 個文件，例如：
+
+「我要在 LeaveManagementTab.jsx 加電郵通知，批准後呼叫 Edge Function，以下是代碼：[貼]」
+
+------------------------------------------------------------------------------------------------------------------------
+20260321 21:59 context header
+【HR SaaS 項目 Context】
+技術棧：React + Vite + Tailwind CSS，Supabase（PostgreSQL）
+文件結構：
+- src/App.jsx（主文件，含所有頁面 component，約1900行）
+- src/constants.js（COUNTRIES, ROLE_LABELS, EMPLOYEE_COLUMNS, emptyForm 等常量）
+- src/utils/permissions.js（loadPermissions, can）
+- src/utils/attachments.js（uploadAttachment, loadXLSX）
+- src/components/（Navbar, Field, AttachmentLink, AttachmentField, SubTableForm）
+
+App.jsx 內的主要 components：
+- LoginPage：Email+密碼登入
+- FormFields：員工表單欄位
+- WorkHistoryTab / EducationTab / MedicalTab / VisaTab / DependentsTab：員工詳情子頁
+- LeaveTab：員工詳情內的年假（申請/餘額/取消）
+- LeaveManagementTab：HR管理年假（審批/拒絕/自動扣額）
+- LeaveTypesTab：假期類型設定
+- LeaveApproversTab：批准人設定（存 employee.id，非 auth user id）
+- BulkUploadModal：Excel批量上傳
+- PermissionsTab：角色權限矩陣
+- DropdownSettingsTab：種族下拉設定
+- UserManagementTab：用戶管理
+- App()：主路由（mainTab 控制頁面切換）
+
+關鍵資料表：employees, user_roles, role_permissions, leave_applications, leave_balances, leave_approvers
+重要規則：leave_approvers.approver1_user_id 存 employee.id（非 auth.users.id）
+----------------------------------------------------------------------------------------------------------------
+20260322 1:14 context header
+【HR SaaS 項目 Context】
+技術棧：React + Vite + Tailwind CSS，Supabase（PostgreSQL）
+路徑：C:\Users\Felix\Documents\AI project\AI programing\HR saas
+
+文件結構：
+- src/App.jsx（主文件，約2190行，含所有頁面 component）
+- src/constants.js（COUNTRIES, ROLE_LABELS, EMPLOYEE_COLUMNS, emptyForm 等）
+- src/utils/permissions.js（loadPermissions, can）
+- src/utils/attachments.js（uploadAttachment, loadXLSX）
+- src/components/（Navbar, Field, AttachmentLink, AttachmentField, SubTableForm）
+
+Supabase 資料表：
+- employees（主表，含 auth_user_id 欄位連結登入帳號）
+- user_roles（user_id, role, display_name, email）
+- role_permissions（角色權限矩陣）
+- leave_applications（假期申請，含 attachment_url）
+- leave_balances（假期餘額：entitled, carried_forward, adjusted, used）
+- leave_approvers（approver1/2_user_id 存 employee.id，非 auth user id）
+- announcements（公司公告，含 is_pinned, expires_at）
+- employee_work_history / employee_education / employee_medical / employee_visa / employee_dependents
+
+App.jsx 主要 components：
+- LoginPage：登入頁
+- DashboardTab：首頁（公告/待審批/簽證到期/生日提醒，按角色顯示不同內容）
+- FormFields：員工表單
+- WorkHistoryTab / EducationTab / MedicalTab / VisaTab / DependentsTab：員工詳情子頁
+- LeaveTab：員工年假（申請/餘額/工齡，含 employeeJoinDate prop）
+- LeaveManagementTab：HR年假管理（按批准人過濾，hr_staff/manager只看自己負責的）
+- LeaveTypesTab / LeaveApproversTab：假期設定
+- BulkUploadModal：Excel批量上傳
+- PermissionsTab / DropdownSettingsTab / UserManagementTab：系統設定
+- App()：主路由（mainTab 控制，Employee登入後 myEmployeeRecord 存個人記錄）
+
+重要邏輯：
+- Employee 登入 → setMyEmployeeRecord → mainTab='dashboard' → 點「我的資料」才進詳情頁
+- leave_approvers.approver1/2_user_id 存 employee.id（非 auth.users.id）
+- super_admin / hr_admin 看所有假期申請，hr_staff / manager 只看自己是批准人的
+- 語言：zh（中文）/ en（英文）/ ms（馬來文）
+
+下次必須先做：
+1. 假期餘額計算問題（entitled 為0顯示負數，需自動初始化）
+2. 電郵通知（Edge Function + Resend）
