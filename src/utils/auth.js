@@ -1,6 +1,7 @@
 import { supabase } from '../supabase'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 export async function sendPasswordResetEmail(email, options = {}) {
   if (!email) return { error: 'Please enter your email.' }
@@ -11,7 +12,10 @@ export async function sendPasswordResetEmail(email, options = {}) {
 
     const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+      },
       body: JSON.stringify({
         type: 'password_reset',
         to: email,
