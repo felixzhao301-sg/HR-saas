@@ -3,14 +3,16 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
 interface EmailPayload {
-  type: "leave_submitted" | "leave_approved" | "leave_rejected";
+  type: "leave_submitted" | "leave_approved" | "leave_rejected" | "password_reset";
   to: string;
-  employeeName: string;
-  leaveType: string;
-  startDate: string;
-  endDate: string;
-  days: number;
+  employeeName?: string;
+  leaveType?: string;
+  startDate?: string;
+  endDate?: string;
+  days?: number;
   reason?: string;
+  resetLink?: string;
+  language?: string;
 }
 
 serve(async (req) => {
@@ -19,12 +21,29 @@ serve(async (req) => {
   }
 
   const payload: EmailPayload = await req.json();
-  const { type, to, employeeName, leaveType, startDate, endDate, days, reason } = payload;
+  const { type, to, employeeName, leaveType, startDate, endDate, days, reason, resetLink, language } = payload;
 
   let subject = "";
   let html = "";
 
-  if (type === "leave_submitted") {
+  if (type === "password_reset") {
+    const isZh = language === 'zh' || !language;
+    const isMs = language === 'ms';
+    subject = isZh ? "重設密碼" : isMs ? "Tetapkan Semula Kata Laluan" : "Reset Your Password";
+    html = `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px;">
+        <h2 style="color:#1d4ed8;">🔐 ${isZh ? '重設密碼' : isMs ? 'Tetapkan Semula Kata Laluan' : 'Reset Your Password'}</h2>
+        <p>${isZh ? '您好，我們收到了您的密碼重設請求。' : isMs ? 'Kami menerima permintaan penetapan semula kata laluan anda.' : 'We received a request to reset your password.'}</p>
+        <p>${isZh ? '請點擊下方按鈕重設密碼：' : isMs ? 'Sila klik butang di bawah:' : 'Click the button below to reset your password:'}</p>
+        <div style="text-align:center;margin:24px 0;">
+          <a href="${resetLink}" style="background:#1d4ed8;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+            ${isZh ? '重設密碼' : isMs ? 'Tetapkan Semula' : 'Reset Password'}
+          </a>
+        </div>
+        <p style="color:#6b7280;font-size:13px;">${isZh ? '此連結將在 1 小時後失效。如果您沒有請求重設密碼，請忽略此郵件。' : isMs ? 'Pautan ini akan tamat dalam 1 jam.' : 'This link expires in 1 hour. If you did not request this, please ignore this email.'}</p>
+      </div>
+    `;
+  } else if (type === "leave_submitted") {
     subject = `【年假申請】${employeeName} 提交了年假申請`;
     html = `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px;">
@@ -77,7 +96,7 @@ serve(async (req) => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      from: "HR System <onboarding@resend.dev>",
+      from: "HR SaaS <onboarding@resend.dev>",
       to: [to],
       subject,
       html,
@@ -87,6 +106,9 @@ serve(async (req) => {
   const data = await res.json();
   return new Response(JSON.stringify(data), {
     status: res.status,
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
   });
 });
