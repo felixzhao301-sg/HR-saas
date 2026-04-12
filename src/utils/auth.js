@@ -1,8 +1,5 @@
 import { supabase } from '../supabase'
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
-
 export async function sendPasswordResetEmail(email, options = {}) {
   if (!email) return { error: 'Please enter your email.' }
   
@@ -10,22 +7,16 @@ export async function sendPasswordResetEmail(email, options = {}) {
     const language = options.language || 'zh'
     const resetLink = `${window.location.origin}/#reset-password`
 
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-        'apikey': SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify({
+    const { error } = await supabase.functions.invoke('send-email', {
+      body: {
         type: 'password_reset',
         to: email,
         resetLink,
         language,
-      }),
+      },
     })
 
-    if (!res.ok) return { error: 'Failed to send email.' }
+    if (error) return { error: error.message }
     return { error: null }
   } catch (err) {
     return { error: err.message }
