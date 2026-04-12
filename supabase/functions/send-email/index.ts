@@ -2,6 +2,12 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 interface EmailPayload {
   type: "leave_submitted" | "leave_approved" | "leave_rejected" | "password_reset";
   to: string;
@@ -16,8 +22,12 @@ interface EmailPayload {
 }
 
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
+    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
   }
 
   const payload: EmailPayload = await req.json();
@@ -40,7 +50,7 @@ serve(async (req) => {
             ${isZh ? '重設密碼' : isMs ? 'Tetapkan Semula' : 'Reset Password'}
           </a>
         </div>
-        <p style="color:#6b7280;font-size:13px;">${isZh ? '此連結將在 1 小時後失效。如果您沒有請求重設密碼，請忽略此郵件。' : isMs ? 'Pautan ini akan tamat dalam 1 jam.' : 'This link expires in 1 hour. If you did not request this, please ignore this email.'}</p>
+        <p style="color:#6b7280;font-size:13px;">${isZh ? '如果您沒有請求重設密碼，請忽略此郵件。' : isMs ? 'Abaikan e-mel ini jika anda tidak membuat permintaan ini.' : 'If you did not request this, please ignore this email.'}</p>
       </div>
     `;
   } else if (type === "leave_submitted") {
@@ -108,7 +118,7 @@ serve(async (req) => {
     status: res.status,
     headers: { 
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
+      ...corsHeaders,
     },
   });
 });
