@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { inputClass } from '../constants'
 import AttachmentLink from '../components/AttachmentLink'
-import { sendLeaveEmail } from '../utils/email'
+import { sendEmail, getEmployeeEmail } from '../utils/email'
 
 export default function LeaveManagementTab({text,language,userRole,currentUserId,companyId}){
   const [applications,setApplications]=useState([])
@@ -13,6 +13,7 @@ export default function LeaveManagementTab({text,language,userRole,currentUserId
   const [savingId,setSavingId]=useState(null)
   const [remarkModal,setRemarkModal]=useState(null)
   const [remarkText,setRemarkText]=useState('')
+
   const leaveTypes=[
     {value:'annual',label:language==='zh'?'年假':'Annual Leave'},
     {value:'medical',label:language==='zh'?'病假':'Medical Leave'},
@@ -23,6 +24,7 @@ export default function LeaveManagementTab({text,language,userRole,currentUserId
   const typeLabel=(val)=>leaveTypes.find(t=>t.value===val)?.label||val
   const statusColor=(s)=>s==='approved'?'bg-green-100 text-green-700':s==='rejected'?'bg-red-100 text-red-600':'bg-yellow-100 text-yellow-700'
   const statusLabel=(s)=>s==='approved'?(language==='zh'?'已批准':'Approved'):s==='rejected'?(language==='zh'?'已拒絕':'Rejected'):(language==='zh'?'待審批':'Pending')
+
   useEffect(()=>{if(companyId)fetchAll()},[companyId])
 
   async function fetchAll(){
@@ -45,53 +47,46 @@ export default function LeaveManagementTab({text,language,userRole,currentUserId
 
   function empName(id){return employees.find(e=>e.id===id)?.full_name||id?.slice(0,8)}
 
-  async function getEmployeeEmail(employeeId){
-    try {
-      const{data:emp}=await supabase
-        .from('employees')
-        .select('personal_email')
-       .eq('id',employeeId)
-       .maybeSingle()
-      console.log('email result:', emp?.personal_email)
-      return emp?.personal_email||null
-    } catch(err) {
-    console.error('getEmployeeEmail error:', err)
-    return null
-    }
-  }
-
   async function handleApprove(app){
     setSavingId(app.id)
-    await supabase.from('leave_applications').update({status:'approved',approved_by:currentUserId,approved_at:new Date().toISOString()}).eq('id',app.id)
+    await supabase.from('leave_applications')
+      .update({status:'approved',approved_by:currentUserId,approved_at:new Date().toISOString()})
+      .eq('id',app.id)
     const year=new Date(app.start_date).getFullYear()
-    const{data:bal}=await supabase.from('leave_balances').select('*').eq('employee_id',app.employee_id).eq('year',year).eq('leave_type',app.leave_type).single()
-    if(bal){await supabase.from('leave_balances').update({used:Number(bal.used)+Number(app.days)}).eq('id',bal.id)}
-    else{await supabase.from('leave_balances').insert([{employee_id:app.employee_id,year,leave_type:app.leave_type,used:Number(app.days)}])}
-    // 發送電郵通知員工
+    const{data:bal}=await supabase.from('leave_balances').select('*')
+      .eq('employee_id',app.employee_id).eq('year',year).eq('leave_type',app.leave_type).single()
+    if(bal){
+      await supabase.from('leave_balances').update({used:Number(bal.used)+Number(app.days)}).eq('id',bal.id)
+    }else{
+      await supabase.from('leave_balances').insert([{employee_id:app.employee_id,year,leave_type:app.leave_type,used:Number(app.days)}])
+    }
     const empEmail=await getEmployeeEmail(app.employee_id)
     if(empEmail){
-      await sendLeaveEmail('leave_approved',empEmail,{
+      await sendEmail('leave_approved',empEmail,{
         employeeName:empName(app.employee_id),
         leaveType:typeLabel(app.leave_type),
         startDate:app.start_date,
         endDate:app.end_date,
         days:app.days,
+        companyName:'YLL Offshore',
       })
     }
     fetchAll();setSavingId(null)
   }
 
   async function handleReject(app){
-    await supabase.from('leave_applications').update({status:'rejected',approved_by:currentUserId,approved_at:new Date().toISOString(),remarks:remarkText}).eq('id',app.id)
-    // 發送電郵通知員工
+    await supabase.from('leave_applications')
+      .update({status:'rejected',approved_by:currentUserId,approved_at:new Date().toISOString(),remarks:remarkText})
+      .eq('id',app.id)
     const empEmail=await getEmployeeEmail(app.employee_id)
     if(empEmail){
-      await sendLeaveEmail('leave_rejected',empEmail,{
+      await sendEmail('leave_rejected',empEmail,{
         employeeName:empName(app.employee_id),
         leaveType:typeLabel(app.leave_type),
         startDate:app.start_date,
         endDate:app.end_date,
         days:app.days,
+        companyName:'YLL Offshore',
       })
     }
     setRemarkModal(null);setRemarkText('');fetchAll()
@@ -102,6 +97,7 @@ export default function LeaveManagementTab({text,language,userRole,currentUserId
     const matchEmp=!filterEmp||a.employee_id===filterEmp
     return matchStatus&&matchEmp
   })
+
   return(
     <div className="p-6">
       <div className="flex justify-between items-center mb-4">

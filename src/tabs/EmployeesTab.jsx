@@ -7,6 +7,7 @@ import Field from '../components/Field'
 import AttachmentLink from '../components/AttachmentLink'
 import AttachmentField from '../components/AttachmentField'
 import SubTableForm from '../components/SubTableForm'
+import { sendEmail } from '../utils/email'
 
 function FormFields({f,setF,raceOptions,language,text}){
   return(
@@ -601,7 +602,7 @@ function BulkUploadModal({onClose,onDone,language,text}){
   )
 }
 
-function LeaveTab({employeeId,text,language,userRole,currentUserId,employeeJoinDate}){
+function LeaveTab({employeeId,companyId,employeeName,text,language,userRole,currentUserId,employeeJoinDate}){
   const [balances,setBalances]=useState([])
   const [applications,setApplications]=useState([])
   const [loading,setLoading]=useState(true)
@@ -642,6 +643,42 @@ function LeaveTab({employeeId,text,language,userRole,currentUserId,employeeJoinD
     let attachment_url=null
     if(leaveFile){attachment_url=await uploadAttachment(leaveFile,'leave');if(!attachment_url){setSaving(false);return}}
     await supabase.from('leave_applications').insert([{employee_id:employeeId,leave_type:form.leave_type,start_date:form.start_date,end_date:form.end_date,days:Number(form.days),reason:form.reason,status:'pending',attachment_url}])
+
+    // 通知批准人
+    try{
+      const{data:approverRow}=await supabase
+        .from('leave_approvers')
+        .select('approver1_user_id, approver2_user_id')
+        .eq('company_id',companyId)
+        .eq('leave_type',form.leave_type)
+        .maybeSingle()
+      if(approverRow){
+        const userIds=[approverRow.approver1_user_id,approverRow.approver2_user_id].filter(Boolean)
+        if(userIds.length>0){
+          const{data:roles}=await supabase
+            .from('user_roles')
+            .select('email,display_name')
+            .in('user_id',userIds)
+            .eq('company_id',companyId)
+          for(const approver of (roles||[])){
+            if(approver.email){
+              await sendEmail('leave_submitted',approver.email,{
+                approverName:approver.display_name,
+                employeeName:employeeName,
+                leaveType:typeLabel(form.leave_type),
+                startDate:form.start_date,
+                endDate:form.end_date,
+                days:form.days,
+                companyName:'YLL Offshore',
+              })
+            }
+          }
+        }
+      }
+    }catch(err){
+      console.error('Approver notify failed:',err)
+    }
+
     setForm({leave_type:'annual',start_date:'',end_date:'',days:'',reason:''});setLeaveFile(null);setShowForm(false);fetchAll();setSaving(false)
   }
   async function handleAdjust(){
@@ -1036,7 +1073,7 @@ export default function EmployeesTab({
               {activeSubTab==='medical'&&(can(permissions,userRole,'view_medical')?<MedicalTab employeeId={emp.id} text={text} language={language}/>:<div className="text-sm text-gray-400 py-8 text-center">{text.noPermission}</div>)}
               {activeSubTab==='visa'&&(can(permissions,userRole,'view_visa')?<VisaTab employeeId={emp.id} text={text} language={language}/>:<div className="text-sm text-gray-400 py-8 text-center">{text.noPermission}</div>)}
               {activeSubTab==='dependents'&&<DependentsTab employeeId={emp.id} text={text}/>}
-              {activeSubTab==='leave'&&<LeaveTab employeeId={emp.id} text={text} language={language} userRole={userRole} currentUserId={currentUserId} employeeJoinDate={emp.join_date}/>}
+              {activeSubTab==='leave'&&<LeaveTab employeeId={emp.id} companyId={companyId} employeeName={emp.full_name} text={text} language={language} userRole={userRole} currentUserId={currentUserId} employeeJoinDate={emp.join_date}/>}
             </div>
           </div>
         )}

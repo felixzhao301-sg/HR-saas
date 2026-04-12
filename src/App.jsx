@@ -1,4 +1,8 @@
+import PlatformAdminPage from './pages/PlatformAdminPage'
+import { isPlatformAdmin } from './utils/guard'
 import { useState, useEffect, useRef } from 'react'
+import LoginPage from './components/LoginPage'
+import ResetPasswordPage from './components/ResetPasswordPage'
 import { supabase } from './supabase'
 import './App.css'
 import { inputClass } from './constants'
@@ -12,6 +16,7 @@ import SettingsTab from './tabs/SettingsTab'
 import DropdownSettingsTab from './tabs/DropdownSettingsTab'
 import PermissionsTab from './tabs/PermissionsTab'
 import EmployeesTab from './tabs/EmployeesTab'
+import RegisterPage from './pages/RegisterPage'
 
 // ─── 底部導航欄 ───────────────────────────────────────────────
 function BottomNav({ mainTab, setMainTab, userRole, language, myEmployeeRecord, setSelectedEmployee }) {
@@ -111,73 +116,6 @@ function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions
   )
 }
 
-// ─── 登入頁 ───────────────────────────────────────────────────
-function LoginPage({ language, setLanguage }) {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [showPwd, setShowPwd] = useState(false)
-  async function handleLogin() {
-    if (!email || !password) { setError(language === 'zh' ? '請填寫 Email 和密碼' : 'Please enter email and password'); return }
-    setLoading(true); setError('')
-    const { error: e } = await supabase.auth.signInWithPassword({ email, password })
-    if (e) setError(language === 'zh' ? '登入失敗，請檢查 Email 或密碼' : 'Login failed. Check your email or password')
-    setLoading(false)
-  }
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <nav className="bg-blue-700 text-white px-4 py-4 flex justify-between items-center shadow">
-        <h1 className="text-lg font-bold">{language === 'zh' ? 'HR 管理系統' : 'HR Management System'}</h1>
-        <select value={language} onChange={e => setLanguage(e.target.value)}
-          className="bg-white text-blue-700 px-2 py-1 rounded text-sm font-medium border-0 cursor-pointer">
-          <option value="zh">中文</option>
-          <option value="en">EN</option>
-          <option value="ms">BM</option>
-        </select>
-      </nav>
-      <div className="flex-1 flex items-center justify-center px-4 py-8">
-        <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-gray-800">{language === 'zh' ? '登入系統' : 'Sign In'}</h2>
-          </div>
-          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">{error}</div>}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                className={inputClass} placeholder="admin@example.com" />
-            </div>
-            <div>
-              <label className="block text-sm text-gray-600 mb-1">{language === 'zh' ? '密碼' : 'Password'}</label>
-              <div className="relative">
-                <input type={showPwd ? 'text' : 'password'} value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                  className={inputClass + ' pr-16'} placeholder="••••••••" />
-                <button type="button" onClick={() => setShowPwd(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 text-xs font-medium">
-                  {showPwd ? (language === 'zh' ? '隱藏' : 'Hide') : (language === 'zh' ? '顯示' : 'Show')}
-                </button>
-              </div>
-            </div>
-            <button onClick={handleLogin} disabled={loading}
-              className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-medium text-base mt-2">
-              {loading ? (language === 'zh' ? '登入中...' : 'Signing in...') : (language === 'zh' ? '登入' : 'Sign In')}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── 主 App ───────────────────────────────────────────────────
 function App() {
   const [language, setLanguage] = useState('zh')
@@ -192,6 +130,9 @@ function App() {
   const [myEmployeeRecord, setMyEmployeeRecord] = useState(null)
   const [companyId, setCompanyId] = useState(null)
   const [companyName, setCompanyName] = useState('')
+  const [resetPasswordMode, setResetPasswordMode] = useState(false)
+  const [showRegister, setShowRegister] = useState(false)
+  const [isPlatformAdminMode, setIsPlatformAdminMode] = useState(false)
 
   const t = {
     zh: {
@@ -317,20 +258,29 @@ function App() {
       else setAuthLoading(false)
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (_event === 'PASSWORD_RECOVERY') {
+        setResetPasswordMode(true)
+        setAuthLoading(false)
+      return
+      }
       if (session?.user) { setCurrentUser(session.user); loadUserRole(session.user.id) }
       else { setCurrentUser(null); setUserRole(null); setPermissions({}); setAuthLoading(false) }
-    })
+     })
     return () => subscription.unsubscribe()
   }, [])
 
   async function loadUserRole(userId) {
+    // 檢查是否 platform admin
+    const isPA = await isPlatformAdmin(userId)
+    if (isPA) { setIsPlatformAdminMode(true); setAuthLoading(false); return }
+
     const { data } = await supabase.from('user_roles').select('role,display_name,email,company_id').eq('user_id', userId).single()
     const role = data?.role || null; setUserRole(role)
     setUserDisplayName(data?.display_name || '')
     if (data?.company_id) {
-      setCompanyId(data.company_id)
-      const { data: co } = await supabase.from('companies').select('name').eq('id', data.company_id).single()
-      if (co) setCompanyName(co.name)
+    setCompanyId(data.company_id)
+    const { data: co } = await supabase.from('companies').select('name').eq('id', data.company_id).single()
+    if (co) setCompanyName(co.name)
     }
     const perms = await loadPermissions(); setPermissions(perms)
     setAuthLoading(false); fetchRaceOptions()
@@ -360,7 +310,31 @@ function App() {
       <div className="text-gray-400 text-sm">{language === 'zh' ? '載入中...' : 'Loading...'}</div>
     </div>
   )
-  if (!currentUser) return <LoginPage language={language} setLanguage={setLanguage} />
+  if (isPlatformAdminMode) return (
+  <PlatformAdminPage onLogout={handleLogout} />
+  )
+  if (showRegister) return (
+  <RegisterPage
+    language={language}
+    onBackToLogin={() => setShowRegister(false)}
+  />
+  )
+  if (resetPasswordMode) return (
+  <ResetPasswordPage
+    language={language}
+    onDone={() => {
+      setResetPasswordMode(false)
+      supabase.auth.signOut()
+    }}
+  />
+)
+  if (!currentUser) return (
+  <LoginPage
+    language={language}
+    setLanguage={setLanguage}
+    onRegister={() => setShowRegister(true)}
+  />
+  )
 
   const settingsTabs = ['permissions', 'dropdown', 'leavetypes', 'approvers', 'users', 'settings']
   const isSettingsTab = settingsTabs.includes(mainTab)
