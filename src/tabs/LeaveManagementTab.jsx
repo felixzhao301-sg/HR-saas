@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { inputClass } from '../constants'
 import AttachmentLink from '../components/AttachmentLink'
-import { sendEmail, getEmployeeEmail } from '../utils/email'
+import { sendEmail, getEmployeeEmail, notifyApprovers } from '../utils/email'
 
 export default function LeaveManagementTab({text,language,userRole,currentUserId,companyId}){
   const [applications,setApplications]=useState([])

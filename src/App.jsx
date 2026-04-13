@@ -17,6 +17,7 @@ import DropdownSettingsTab from './tabs/DropdownSettingsTab'
 import PermissionsTab from './tabs/PermissionsTab'
 import EmployeesTab from './tabs/EmployeesTab'
 import RegisterPage from './pages/RegisterPage'
+import MyLeaveTab from './tabs/MyLeaveTab' 
 
 // ─── 底部導航欄 ───────────────────────────────────────────────
 function BottomNav({ mainTab, setMainTab, userRole, language, myEmployeeRecord, setSelectedEmployee }) {
@@ -30,7 +31,8 @@ function BottomNav({ mainTab, setMainTab, userRole, language, myEmployeeRecord, 
       en: userRole === 'employee' ? 'My Profile' : 'Employees',
       ms: userRole === 'employee' ? 'Profil' : 'Pekerja'
     },
-    ...(isAdmin ? [{ key: 'leave', icon: '📋', zh: '年假管理', en: 'Leave', ms: 'Cuti' }] : []),
+    { key: 'myleave', icon: '🗓️', zh: '我的假期', en: 'My Leave', ms: 'Cuti Saya' },
+    ...(isAdmin ? [{ key: 'leave', icon: '📋', zh: '年假管理', en: 'Leave Mgmt', ms: 'Urus Cuti' }] : []),
   ]
   const label = (tab) => language === 'zh' ? tab.zh : language === 'ms' ? tab.ms : tab.en
   function handleClick(tab) {
@@ -288,11 +290,8 @@ function App() {
     const { data: empData } = await supabase.from('employees').select('*').eq('auth_user_id', userId).maybeSingle()
     if (empData) {
       setMyEmployeeRecord(empData)
-      setSelectedEmployee(empData)
-      setMainTab('employees')
-    } else {
-      setMainTab('dashboard')
     }
+    setMainTab('dashboard')
   }
 
   async function handleLogout() {
@@ -406,7 +405,21 @@ function App() {
           {mainTab === 'permissions' && <div className="bg-white rounded-xl shadow overflow-hidden"><PermissionsTab userRole={userRole} permissions={permissions} text={text} language={language} companyId={companyId} /></div>}
           {mainTab === 'leavetypes' && <div className="bg-white rounded-xl shadow overflow-hidden"><LeaveTypesTab text={text} language={language} companyId={companyId} /></div>}
           {mainTab === 'approvers' && <div className="bg-white rounded-xl shadow overflow-hidden"><LeaveApproversTab text={text} language={language} companyId={companyId} /></div>}
-          {mainTab === 'leave' && <div className="bg-white rounded-xl shadow overflow-hidden"><LeaveManagementTab text={text} language={language} userRole={userRole} currentUserId={currentUser?.id} companyId={companyId} /></div>}
+          {mainTab === 'myleave' && (
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <MyLeaveTab
+                text={text}
+                language={language}
+                currentUserId={currentUser?.id}
+                companyId={companyId}
+              />
+            </div>
+          )}
+          {mainTab === 'leave' && (
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <LeaveManagementTab text={text} language={language} userRole={userRole} currentUserId={currentUser?.id} companyId={companyId} />
+            </div>
+          )}
           {mainTab === 'users' && <div className="bg-white rounded-xl shadow overflow-hidden"><UserManagementTab text={text} language={language} currentUserRole={userRole} companyId={companyId} /></div>}
           {mainTab === 'settings' && <div className="bg-white rounded-xl shadow overflow-hidden"><SettingsTab language={language} /></div>}
           {mainTab === 'dropdown' && <div className="bg-white rounded-xl shadow overflow-hidden"><DropdownSettingsTab text={text} language={language} onRaceUpdated={fetchRaceOptions} companyId={companyId} /></div>}
