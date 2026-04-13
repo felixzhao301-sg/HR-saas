@@ -290,8 +290,15 @@ function App() {
     const { data: empData } = await supabase.from('employees').select('*').eq('auth_user_id', userId).maybeSingle()
     if (empData) {
       setMyEmployeeRecord(empData)
+      setSelectedEmployee(empData)  // ← 直接設定選中自己
+      if (role === 'employee') {
+        setMainTab('employees')  // ← 進 employees tab，但已選中自己，所以直接看到詳情頁
+      } else {
+        setMainTab('dashboard')
+        }
+    } else {
+      setMainTab('dashboard')
     }
-    setMainTab('dashboard')
   }
 
   async function handleLogout() {
