@@ -1004,8 +1004,8 @@ export default function EmployeesTab({
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {can(permissions,userRole,'edit_employee')&&<button onClick={startEdit} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">{text.edit}</button>}
-                  {can(permissions,userRole,'delete_employee')&&<button onClick={()=>setShowDeleteConfirm(true)} className="px-4 py-2 text-sm bg-red-500 text-white rounded hover:bg-red-600">{text.delete}</button>}
+                  {can(permissions,userRole,'employee.edit')&&<button onClick={startEdit} className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">{text.edit}</button>}
+                  {can(permissions,userRole,'employee.delete')&&<button onClick={()=>setShowDeleteConfirm(true)} className="px-4 py-2 text-sm bg-red-500 text-white rounded hover:bg-red-600">{text.delete}</button>}
                 </div>
               </div>
             </div>
@@ -1045,7 +1045,7 @@ export default function EmployeesTab({
                     {emp.is_seaman&&<Field label={text.seamanNo} value={emp.seaman_no}/>}
                     {emp.is_seaman&&emp.seaman_expiry&&<Field label={text.seamanExpiry} value={emp.seaman_expiry}/>}
                     <Field label={text.annualLeave} value={emp.annual_leave}/>
-                    {can(permissions,userRole,'view_salary')&&<>
+                    {can(permissions,userRole,'salary.view_all')&&<>
                       <Field label={text.basicSalary} value={emp.basic_salary?`$${emp.basic_salary}`:null}/>
                       <Field label={text.basicAllowance} value={emp.basic_allowance?`$${emp.basic_allowance}`:null}/>
                     </>}
@@ -1056,7 +1056,7 @@ export default function EmployeesTab({
                     <Field label={text.passportIssue} value={emp.passport_issue_date}/>
                     <Field label={text.passportExpiry} value={emp.passport_expiry_date}/>
                   </div>
-                  {can(permissions,userRole,'view_salary')&&(
+                  {can(permissions,userRole,'salary.view_all')&&(
                     <div>
                       <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{text.bankInfo}</h3>
                       <Field label={text.bankName} value={emp.bank_name}/>
@@ -1070,8 +1070,8 @@ export default function EmployeesTab({
               )}
               {activeSubTab==='work_history'&&<WorkHistoryTab employeeId={emp.id} text={text}/>}
               {activeSubTab==='education'&&<EducationTab employeeId={emp.id} text={text} language={language}/>}
-              {activeSubTab==='medical'&&(can(permissions,userRole,'view_medical')?<MedicalTab employeeId={emp.id} text={text} language={language}/>:<div className="text-sm text-gray-400 py-8 text-center">{text.noPermission}</div>)}
-              {activeSubTab==='visa'&&(can(permissions,userRole,'view_visa')?<VisaTab employeeId={emp.id} text={text} language={language}/>:<div className="text-sm text-gray-400 py-8 text-center">{text.noPermission}</div>)}
+              {activeSubTab==='medical'&&(can(permissions,userRole,'medical.view_all')?<MedicalTab employeeId={emp.id} text={text} language={language}/>:<div className="text-sm text-gray-400 py-8 text-center">{text.noPermission}</div>)}
+              {activeSubTab==='visa'&&(can(permissions,userRole,'visa.view_all')?<VisaTab employeeId={emp.id} text={text} language={language}/>:<div className="text-sm text-gray-400 py-8 text-center">{text.noPermission}</div>)}
               {activeSubTab==='dependents'&&<DependentsTab employeeId={emp.id} text={text}/>}
               {activeSubTab==='leave'&&<LeaveTab employeeId={emp.id} companyId={companyId} employeeName={emp.full_name} text={text} language={language} userRole={userRole} currentUserId={currentUserId} employeeJoinDate={emp.join_date}/>}
             </div>
@@ -1101,8 +1101,8 @@ export default function EmployeesTab({
         <div className="flex gap-2">
           <button onClick={downloadTemplate} className="border border-gray-300 text-gray-600 px-3 py-2 rounded text-sm hover:bg-gray-50">📥 {language==='zh'?'下載範本':'Template'}</button>
           <button onClick={downloadAllEmployees} className="border border-gray-300 text-gray-600 px-3 py-2 rounded text-sm hover:bg-gray-50">📤 {language==='zh'?'匯出員工':'Export'}</button>
-          {can(permissions,userRole,'create_employee')&&<button onClick={()=>setShowBulkUpload(true)} className="border border-blue-400 text-blue-600 px-3 py-2 rounded text-sm hover:bg-blue-50">📂 {language==='zh'?'批量上傳':'Bulk Import'}</button>}
-          {can(permissions,userRole,'create_employee')&&<button onClick={()=>{setForm(emptyForm);setShowForm(true)}} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">+ {text.addEmployee}</button>}
+          {can(permissions,userRole,'employee.create')&&<button onClick={()=>setShowBulkUpload(true)} className="border border-blue-400 text-blue-600 px-3 py-2 rounded text-sm hover:bg-blue-50">📂 {language==='zh'?'批量上傳':'Bulk Import'}</button>}
+          {can(permissions,userRole,'employee.create')&&<button onClick={()=>{setForm(emptyForm);setShowForm(true)}} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">+ {text.addEmployee}</button>}
         </div>
       </div>
       <input type="text" placeholder={text.search} value={search} onChange={e=>setSearch(e.target.value)} className="w-full border border-gray-300 rounded px-4 py-2 mb-6 focus:outline-none focus:ring-2 focus:ring-blue-400"/>

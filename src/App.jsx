@@ -74,10 +74,10 @@ function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions
     { type: 'divider' },
     { key: 'settings', icon: '🔑', zh: '個人設定', en: 'My Settings', show: true },
     { type: 'divider' },
-    { key: 'permissions', icon: '🛡️', zh: '權限設定', en: 'Permissions', show: can(permissions, userRole, 'manage_dropdown') },
-    { key: 'dropdown', icon: '🏷️', zh: '種族設定', en: 'Race Settings', show: can(permissions, userRole, 'manage_dropdown') },
-    { key: 'leavetypes', icon: '📅', zh: '假期設定', en: 'Leave Types', show: can(permissions, userRole, 'manage_dropdown') },
-    { key: 'approvers', icon: '✅', zh: '批准人設定', en: 'Approvers', show: can(permissions, userRole, 'manage_dropdown') },
+    { key: 'permissions', icon: '🛡️', zh: '權限設定', en: 'Permissions', show: can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'dropdown', icon: '🏷️', zh: '種族設定', en: 'Race Settings', show: can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'leavetypes', icon: '📅', zh: '假期設定', en: 'Leave Types', show: can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'approvers', icon: '✅', zh: '批准人設定', en: 'Approvers', show: can(permissions, userRole, 'system.manage_dropdown') },
     { key: 'users', icon: '👤', zh: '用戶管理', en: 'Users', show: ['super_admin', 'hr_admin'].includes(userRole) },
     { type: 'divider' },
     { key: 'logout', icon: '🚪', zh: '登出', en: 'Logout', show: true, danger: true },
@@ -284,7 +284,7 @@ function App() {
     const { data: co } = await supabase.from('companies').select('name').eq('id', data.company_id).single()
     if (co) setCompanyName(co.name)
     }
-    const perms = await loadPermissions(); setPermissions(perms)
+    const perms = await loadPermissions(data.company_id, role); setPermissions(perms)
     setAuthLoading(false); fetchRaceOptions()
     // 登入路由：有員工記錄 → 個人資料，否則 → Dashboard
     const { data: empData } = await supabase.from('employees').select('*').eq('auth_user_id', userId).maybeSingle()

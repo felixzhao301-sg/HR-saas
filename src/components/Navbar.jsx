@@ -19,10 +19,10 @@ export default function Navbar({ title, language, setLanguage, currentUser, user
   }, [])
 
   const settingsItems = [
-    { key: 'permissions', labelZh: '權限設定', labelEn: 'Permissions', show: can && can(permissions, userRole, 'manage_dropdown') },
-    { key: 'dropdown',    labelZh: '種族設定', labelEn: 'Race Settings', show: can && can(permissions, userRole, 'manage_dropdown') },
-    { key: 'leavetypes',  labelZh: '假期設定', labelEn: 'Leave Types', show: can && can(permissions, userRole, 'manage_dropdown') },
-    { key: 'approvers',   labelZh: '批准人設定', labelEn: 'Approvers', show: can && can(permissions, userRole, 'manage_dropdown') },
+    { key: 'permissions', labelZh: '權限設定', labelEn: 'Permissions', show: can && can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'dropdown',    labelZh: '種族設定', labelEn: 'Race Settings', show: can && can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'leavetypes',  labelZh: '假期設定', labelEn: 'Leave Types', show: can && can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'approvers',   labelZh: '批准人設定', labelEn: 'Approvers', show: can && can(permissions, userRole, 'system.manage_dropdown') },
     { key: 'users',       labelZh: '用戶管理', labelEn: 'Users', show: ['super_admin','hr_admin'].includes(userRole) },
     { key: 'settings',    labelZh: '個人設定', labelEn: 'My Settings', show: true },
   ].filter(i => i.show)
