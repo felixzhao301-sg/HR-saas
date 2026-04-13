@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { can, MODULES } from '../utils/permissions'
 
@@ -7,7 +7,7 @@ const ROLE_LABELS = {
   hr_admin: 'HR Admin', hr_staff: 'HR Staff', manager: 'Manager',
   employee: 'Employee', finance: 'Finance', read_only: 'Read Only',
 }
-const LOCKED_ACTIONS = ['system.system.manage_roles'] // Super Admin only，不可修改
+const LOCKED_ACTIONS = ['system.manage_roles']
 
 export default function PermissionsTab({ userRole, permissions: permMap, text, language, companyId }) {
   const [matrix, setMatrix] = useState({})
@@ -42,18 +42,24 @@ export default function PermissionsTab({ userRole, permissions: permMap, text, l
       MODULES.forEach(mod =>
         mod.actions.forEach(({ key }) =>
           updates.push({
-            role, action: key,
+            role,
+            action: key,
             allowed: !!matrix[role]?.[key],
             company_id: companyId,
           })
         )
       )
     )
-    await supabase.from('role_permissions').upsert(updates, { onConflict: 'role,action,company_id' })
-    setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2000)
+    // 先刪除再插入，避免 upsert conflict 問題
+    await supabase.from('role_permissions').delete().eq('company_id', companyId)
+    const { error } = await supabase.from('role_permissions').insert(updates)
+    if (error) console.error('[permissions] save error:', error)
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
   }
 
-  if (!can(permMap, userRole, 'system.system.manage_roles') && !['super_admin', 'hr_admin'].includes(userRole))
+  if (!['super_admin', 'hr_admin'].includes(userRole))
     return <div className="p-8 text-center text-gray-400">{text.noPermission}</div>
 
   return (
@@ -69,8 +75,9 @@ export default function PermissionsTab({ userRole, permissions: permMap, text, l
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
           {saving
             ? (language === 'zh' ? '儲存中...' : 'Saving...')
-            : saved ? '✓ ' + (language === 'zh' ? '已儲存' : 'Saved')
-            : (language === 'zh' ? '儲存變更' : 'Save Changes')}
+            : saved
+              ? '✓ ' + (language === 'zh' ? '已儲存' : 'Saved')
+              : (language === 'zh' ? '儲存變更' : 'Save Changes')}
         </button>
       </div>
 
@@ -90,14 +97,12 @@ export default function PermissionsTab({ userRole, permissions: permMap, text, l
           </thead>
           <tbody>
             {MODULES.map(mod => (
-              <>
-                {/* 模塊標題行 */}
-                <tr key={`mod-${mod.key}`} className="bg-blue-50">
+              <React.Fragment key={mod.key}>
+                <tr className="bg-blue-50">
                   <td colSpan={ROLES.length + 1} className="px-3 py-2 text-xs font-bold text-blue-700 tracking-wide">
                     {language === 'zh' ? mod.label_zh : mod.label_en}
                   </td>
                 </tr>
-                {/* 功能行 */}
                 {mod.actions.map(({ key, label_zh, label_en }) => {
                   const locked = LOCKED_ACTIONS.includes(key)
                   return (
@@ -122,7 +127,7 @@ export default function PermissionsTab({ userRole, permissions: permMap, text, l
                     </tr>
                   )
                 })}
-              </>
+              </React.Fragment>
             ))}
           </tbody>
         </table>
@@ -130,8 +135,8 @@ export default function PermissionsTab({ userRole, permissions: permMap, text, l
 
       <div className="mt-4 p-3 bg-gray-50 rounded-lg text-xs text-gray-500 space-y-1">
         <div>* Super Admin 擁有全部權限且不可修改</div>
-        <div>* <code className="bg-gray-200 px-1 rounded">view_own</code> 系列（查看自己資料）由代碼邏輯控制，所有登入用戶預設擁有</div>
-        <div>* <code className="bg-gray-200 px-1 rounded">system.system.manage_roles</code> 僅 Super Admin 可操作</div>
+        <div>* <code className="bg-gray-200 px-1 rounded">view_own</code> 系列由代碼邏輯控制，所有登入用戶預設擁有</div>
+        <div>* <code className="bg-gray-200 px-1 rounded">system.manage_roles</code> 僅 Super Admin 可操作</div>
       </div>
     </div>
   )
