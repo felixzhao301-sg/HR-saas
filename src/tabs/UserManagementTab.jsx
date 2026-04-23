@@ -2,186 +2,591 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { inputClass, ROLE_LABELS } from '../constants'
 
-export default function UserManagementTab({text,language,currentUserRole,companyId}){
-  const [users,setUsers]=useState([])
-  const [loading,setLoading]=useState(true)
-  const [showForm,setShowForm]=useState(false)
-  const [editingUser,setEditingUser]=useState(null)
-  const [editName,setEditName]=useState('')
-  const [editEmail,setEditEmail]=useState('')
-  const [newEmail,setNewEmail]=useState('')
-  const [newPassword,setNewPassword]=useState('')
-  const [newRole,setNewRole]=useState('hr_staff')
-  const [saving,setSaving]=useState(false)
-  const [error,setError]=useState('')
-  const [success,setSuccess]=useState('')
-  const [newName,setNewName]=useState('')
-  const [employees,setEmployees]=useState([])
-  const [newEmployeeId,setNewEmployeeId]=useState('')
-  const [showNewPwd,setShowNewPwd]=useState(false)
+export default function UserManagementTab({ text, language, currentUserRole, companyId }) {
+  const [employees, setEmployees] = useState([])
+  const [userRoles, setUserRoles] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [companyName, setCompanyName] = useState('')
 
-  useEffect(()=>{if(companyId){fetchUsers();fetchAllEmployees()}},[companyId])
+  const [showForm, setShowForm] = useState(false)
+  const [preselectedEmpId, setPreselectedEmpId] = useState('')
 
-  async function fetchAllEmployees(){
-    const{data}=await supabase.from('employees').select('id,full_name').eq('company_id',companyId).order('full_name')
-    setEmployees(data||[])
-  }
+  const [newEmployeeId, setNewEmployeeId] = useState('')
+  const [newName, setNewName] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [newRole, setNewRole] = useState('employee')
+  const [showNewPwd, setShowNewPwd] = useState(false)
 
-  async function fetchUsers(){
+  const [editingUser, setEditingUser] = useState(null)
+  const [editName, setEditName] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+
+  const [sortKey, setSortKey] = useState('full_name')
+  const [sortDir, setSortDir] = useState('asc')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  // ✅ 新增：追蹤最後一次操作的郵件狀態
+  const [emailStatus, setEmailStatus] = useState(null) // { sent: bool, to: string, type: string }
+
+  const zh = language === 'zh'
+  const roles = ['super_admin', 'hr_admin', 'hr_staff', 'manager', 'employee', 'finance', 'read_only']
+
+  useEffect(() => {
+    if (companyId) loadAll()
+  }, [companyId])
+
+  async function loadAll() {
     setLoading(true)
-    const{data}=await supabase.from('user_roles').select('*').eq('company_id',companyId).order('created_at',{ascending:false})
-    setUsers(data||[]);setLoading(false)
+    await Promise.all([fetchEmployees(), fetchUserRoles(), fetchCompanyName()])
+    setLoading(false)
   }
 
-  async function handleSendResetEmail(email){
-    if(!email){setError(language==='zh'?'此用戶沒有 Email':'No email for this user');return}
-    setSaving(true);setError('')
-    const{error:e}=await supabase.auth.resetPasswordForEmail(email,{
-      redirectTo:window.location.origin
-    })
-    if(e)setError(e.message)
-    else setSuccess(language==='zh'?`重設密碼郵件已發送至 ${email}`:`Password reset email sent to ${email}`)
-    setSaving(false)
-    setTimeout(()=>setSuccess(''),5000)
+  async function fetchCompanyName() {
+    const { data } = await supabase
+      .from('companies').select('name').eq('id', companyId).single()
+    if (data) setCompanyName(data.name)
   }
 
-  async function handleCreateUser(){
-    if(!newEmail||!newPassword||!newName){setError(language==='zh'?'請填寫所有欄位（包括姓名）':'Please fill all fields including name');return}
-    if(newPassword.length<6){setError(language==='zh'?'密碼至少 6 位':'Password must be at least 6 characters');return}
-    setSaving(true);setError('');setSuccess('')
-    const{data:{session:currentSession}}=await supabase.auth.getSession()
-    const{data:signUpData,error:signUpError}=await supabase.auth.signUp({email:newEmail,password:newPassword})
-    if(signUpError){setError(signUpError.message);setSaving(false);return}
-    if(signUpData.user){
-      await supabase.from('user_roles').insert([{user_id:signUpData.user.id,role:newRole,display_name:newName,email:newEmail,company_id:companyId}])
-      if(newEmployeeId){
-        await supabase.from('employees').update({auth_user_id:signUpData.user.id}).eq('id',newEmployeeId)
-      }
-      setSuccess(language==='zh'?`用戶 ${newName} (${newEmail}) 建立成功！`:`User ${newName} (${newEmail}) created!`)
+  async function fetchEmployees() {
+    const { data, error: err } = await supabase
+      .from('employees')
+      .select('id, full_name, personal_email, work_email, auth_user_id, position')
+      .eq('company_id', companyId)
+    if (!err) setEmployees(data || [])
+  }
+
+  async function fetchUserRoles() {
+    const { data, error: err } = await supabase
+      .from('user_roles')
+      .select('user_id, role, display_name, email, created_at')
+      .eq('company_id', companyId)
+    if (!err) {
+      const map = {}
+      ;(data || []).forEach(u => { map[u.user_id] = u })
+      setUserRoles(map)
     }
-    if(currentSession){await supabase.auth.setSession({access_token:currentSession.access_token,refresh_token:currentSession.refresh_token})}
-    setNewEmail('');setNewPassword('');setNewRole('hr_staff');setNewName('');setNewEmployeeId('');setShowForm(false);fetchUsers();setSaving(false)
   }
 
-  async function handleSaveEdit(){
-    if(!editName){setError(language==='zh'?'姓名不能為空':'Name cannot be empty');return}
-    setSaving(true);setError('')
-    await supabase.from('user_roles').update({display_name:editName,email:editEmail}).eq('user_id',editingUser.user_id)
-    setSuccess(language==='zh'?'更新成功':'Updated successfully')
-    setEditingUser(null);setEditName('');setEditEmail('');fetchUsers();setSaving(false)
-    setTimeout(()=>setSuccess(''),5000)
+  function getUserRole(emp) {
+    if (!emp.auth_user_id) return null
+    return userRoles[emp.auth_user_id] || null
   }
 
-  async function handleChangeRole(userId,newRoleVal){await supabase.from('user_roles').update({role:newRoleVal}).eq('user_id',userId);fetchUsers()}
-  async function handleDeleteUser(userId){
-    if(!window.confirm(language==='zh'?'確定要移除這個用戶的角色嗎？':'Remove this user role?'))return
-    await supabase.from('user_roles').delete().eq('user_id',userId);fetchUsers()
+  function resetForm() {
+    setNewEmployeeId(''); setNewName(''); setNewEmail('')
+    setNewPassword(''); setNewRole('employee')
+    setShowForm(false); setPreselectedEmpId(''); setError('')
   }
-  const roles=['super_admin','hr_admin','hr_staff','manager','employee','finance','read_only']
-  return(
+
+  function openFormForEmployee(emp) {
+    setPreselectedEmpId(emp.id)
+    setNewEmployeeId(emp.id)
+    setNewName(emp.full_name || '')
+    setNewEmail(emp.work_email || emp.personal_email || '') // ← 改這行
+    setEditingUser(null)
+    setShowForm(true)
+    setError('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function handleSelectEmployee(empId) {
+    setNewEmployeeId(empId)
+    if (!empId) { setNewName(''); setNewEmail(''); return }
+    const emp = employees.find(e => e.id === empId)
+    if (!emp) return
+    setNewName(emp.full_name || '')
+    // work_email 優先，沒有才用 personal_email
+    setNewEmail(emp.work_email || emp.personal_email || '')
+  }
+
+  // ── 創建帳號 ──
+  async function handleCreateUser() {
+    setError('')
+    if (!newEmployeeId) {
+      setError(zh ? '請選擇員工記錄' : 'Please select an employee record'); return
+    }
+    if (!newEmail.trim()) {
+      setError(zh ? '請填寫 Email' : 'Please enter an email'); return
+    }
+    if (!newPassword || newPassword.length < 6) {
+      setError(zh ? '密碼至少 6 位' : 'Password must be at least 6 characters'); return
+    }
+
+    setSaving(true)
+    setEmailStatus(null)
+
+    const { data, error: fnError } = await supabase.functions.invoke('send-email', {
+      body: {
+        action: 'create-user',
+        email: newEmail.trim().toLowerCase(),
+        password: newPassword,
+        displayName: newName.trim(),
+        role: newRole,
+        companyId,
+        employeeId: newEmployeeId,
+        companyName,
+        language,
+        siteUrl: window.location.origin,
+      },
+    })
+    setSaving(false)
+
+    if (fnError || data?.error) {
+      setError(fnError?.message || data?.error || (zh ? '創建失敗，請重試' : 'Creation failed'))
+      return
+    }
+
+    // ✅ 顯示成功 + 郵件狀態
+    const emailSent = data?.emailSent !== false // Edge Function 若有回傳 emailSent 欄位
+    setEmailStatus({
+      sent: emailSent,
+      to: newEmail.trim().toLowerCase(),
+      type: 'invite',
+    })
+    setSuccess(zh ? `✅ 帳號已建立：${newName}` : `✅ Account created: ${newName}`)
+    setTimeout(() => { setSuccess(''); setEmailStatus(null) }, 8000)
+    resetForm()
+    await loadAll()
+  }
+
+  // ── 編輯帳號 ──
+  async function handleSaveEdit() {
+    if (!editName.trim()) {
+      setError(zh ? '姓名不能為空' : 'Name cannot be empty'); return
+    }
+    setSaving(true); setError('')
+    await supabase.from('user_roles')
+      .update({ display_name: editName.trim()})
+      .eq('user_id', editingUser.user_id)
+    setSuccess(zh ? '更新成功' : 'Updated')
+    setEditingUser(null); setEditName(''); setEditEmail('')
+    await loadAll(); setSaving(false)
+    setTimeout(() => setSuccess(''), 5000)
+  }
+
+  // ── 改角色 ──
+  async function handleChangeRole(userId, newRoleVal) {
+    await supabase.from('user_roles').update({ role: newRoleVal }).eq('user_id', userId)
+    await fetchUserRoles()
+  }
+
+  // ── 發重設密碼郵件 ──
+  async function handleSendResetEmail(email) {
+    if (!email) { setError(zh ? '此用戶沒有 Email' : 'No email'); return }
+    setSaving(true); setError(''); setEmailStatus(null)
+    const { error: e } = await supabase.auth.resetPasswordForEmail(email)
+    setSaving(false)
+    if (e) {
+      setError(e.message)
+    } else {
+      setEmailStatus({ sent: true, to: email, type: 'reset' })
+      setSuccess(zh ? `重設密碼郵件已發送至 ${email}` : `Reset email sent to ${email}`)
+      setTimeout(() => { setSuccess(''); setEmailStatus(null) }, 8000)
+    }
+  }
+
+  // ── 刪除帳號 ──
+  async function handleDeleteUser(userId) {
+    if (!window.confirm(zh
+      ? '確定要移除這個用戶的角色嗎？Auth 帳號需在 Supabase 後台刪除。'
+      : 'Remove this user role? Auth account must be deleted from Supabase dashboard.')) return
+    await supabase.from('user_roles').delete().eq('user_id', userId)
+    await supabase.from('employees').update({ auth_user_id: null }).eq('auth_user_id', userId)
+    await loadAll()
+  }
+
+  const unlinkedEmployees = employees.filter(e => !e.auth_user_id)
+  const linkedCount = employees.filter(e => e.auth_user_id).length
+  const unlinkedCount = employees.length - linkedCount
+
+  function handleSort(key) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const sortedEmployees = [...employees].sort((a, b) => {
+    const ur_a = getUserRole(a)
+    const ur_b = getUserRole(b)
+    let valA = '', valB = ''
+    if (sortKey === 'full_name') {
+      valA = a.full_name || ''; valB = b.full_name || ''
+    } else if (sortKey === 'email') {
+      valA = ur_a?.email || a.personal_email || ''
+      valB = ur_b?.email || b.personal_email || ''
+    } else if (sortKey === 'status') {
+      valA = ur_a ? '1' : '0'; valB = ur_b ? '1' : '0'
+    } else if (sortKey === 'role') {
+      valA = ur_a?.role || 'zzz'; valB = ur_b?.role || 'zzz'
+    }
+    const cmp = valA.localeCompare(valB)
+    return sortDir === 'asc' ? cmp : -cmp
+  })
+
+  return (
     <div className="p-6">
+      {/* 頁頭 */}
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-gray-800">{text.userMgmt}</h2>
-        {!showForm&&!editingUser&&<button onClick={()=>setShowForm(true)} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">+ {text.addUser}</button>}
-      </div>
-      {success&&<div className="mb-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-600">{success}</div>}
-      {showForm&&(
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">{language==='zh'?'新增用戶':'Add User'}</h3>
-          {error&&<div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">{error}</div>}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2"><label className="block text-xs text-gray-600 mb-1">{language==='zh'?'姓名 *':'Name *'}</label>
-              <input value={newName} onChange={e=>setNewName(e.target.value)} className={inputClass} placeholder={language==='zh'?'例：張小明':'e.g. John Smith'}/>
-            </div>
-            <div><label className="block text-xs text-gray-600 mb-1">Email</label>
-              <input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} className={inputClass} placeholder="user@example.com"/>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">{text.password}</label>
-              <div className="relative">
-                <input type={showNewPwd?'text':'password'} value={newPassword} onChange={e=>setNewPassword(e.target.value)} className={inputClass+' pr-16'} placeholder="••••••"/>
-                <button type="button" onClick={()=>setShowNewPwd(v=>!v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 text-xs font-medium select-none">
-                  {showNewPwd?(language==='zh'?'隱藏':'Hide'):(language==='zh'?'顯示':'Show')}
-                </button>
-              </div>
-            </div>
-            <div className="col-span-2"><label className="block text-xs text-gray-600 mb-1">{text.role}</label>
-              <select value={newRole} onChange={e=>setNewRole(e.target.value)} className={inputClass}>
-                {roles.filter(r=>r!=='super_admin').map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-              </select>
-            </div>
-            <div className="col-span-2"><label className="block text-xs text-gray-600 mb-1">{language==='zh'?'關聯員工記錄（Employee角色必填）':'Link to Employee Record (required for Employee role)'}</label>
-              <select value={newEmployeeId} onChange={e=>setNewEmployeeId(e.target.value)} className={inputClass}>
-                <option value="">{language==='zh'?'— 不關聯 —':'— None —'}</option>
-                {employees.map(e=><option key={e.id} value={e.id}>{e.full_name}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 mt-3">
-            <button onClick={()=>{setShowForm(false);setError('')}} className="px-3 py-1.5 text-xs text-gray-600 border rounded hover:bg-gray-50">{text.cancel}</button>
-            <button onClick={handleCreateUser} disabled={saving} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50">{saving?'...':text.createUser}</button>
-          </div>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800">{text.userMgmt}</h2>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {zh ? '管理公司用戶帳號和角色' : 'Manage company user accounts and roles'}
+          </p>
         </div>
-      )}
-      {editingUser&&(
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">{language==='zh'?`編輯用戶：${editingUser.display_name||editingUser.user_id?.slice(0,8)}`:`Edit User: ${editingUser.display_name||editingUser.user_id?.slice(0,8)}`}</h3>
-          {error&&<div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600">{error}</div>}
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="block text-xs text-gray-600 mb-1">{language==='zh'?'姓名 *':'Name *'}</label>
-              <input value={editName} onChange={e=>setEditName(e.target.value)} className={inputClass}/>
-            </div>
-            <div><label className="block text-xs text-gray-600 mb-1">Email</label>
-              <input type="email" value={editEmail} onChange={e=>setEditEmail(e.target.value)} className={inputClass} placeholder="user@example.com"/>
-            </div>
-            <div className="col-span-2">
-              <label className="block text-xs text-gray-600 mb-1">{language==='zh'?'重設密碼':'Reset Password'}</label>
-              <button type="button" onClick={()=>handleSendResetEmail(editingUser.email)} disabled={saving} className="w-full py-2 text-sm border border-blue-300 text-blue-600 rounded hover:bg-blue-50 disabled:opacity-50">
-                📧 {language==='zh'?`發送重設密碼郵件給 ${editingUser?.display_name||editingUser?.email}`:`Send reset email to ${editingUser?.display_name||editingUser?.email}`}
-              </button>
-              <p className="text-xs text-gray-400 mt-1">{language==='zh'?'用戶會收到郵件，點擊連結自行重設密碼':'User will receive an email to reset their own password'}</p>
-            </div>
-          </div>
-          <p className="text-xs text-gray-400 mt-2">* {language==='zh'?'角色請在下方表格直接修改':'Change role in the table below'}</p>
-          <div className="flex justify-end gap-2 mt-3">
-            <button onClick={()=>{setEditingUser(null);setEditName('');setEditEmail('');setError('')}} className="px-3 py-1.5 text-xs text-gray-600 border rounded hover:bg-gray-50">{text.cancel}</button>
-            <button onClick={handleSaveEdit} disabled={saving} className="px-3 py-1.5 text-xs bg-amber-500 text-white rounded hover:bg-amber-600 disabled:opacity-50">{saving?'...':(language==='zh'?'儲存':'Save')}</button>
-          </div>
-        </div>
-      )}
-      {loading?<div className="text-sm text-gray-400 py-4 text-center">{text.loading}</div>
-        :users.length===0?<div className="text-sm text-gray-400 py-8 text-center border-2 border-dashed rounded-lg">{text.noUsers}</div>
-        :(
-          <table className="w-full text-sm border-collapse">
-            <thead><tr className="bg-gray-50">
-              <th className="text-left p-3 font-medium text-gray-600 border-b">{language==='zh'?'姓名':'Name'}</th>
-              <th className="text-left p-3 font-medium text-gray-600 border-b">Email</th>
-              <th className="text-left p-3 font-medium text-gray-600 border-b">{text.role}</th>
-              <th className="text-left p-3 font-medium text-gray-600 border-b">{text.joinDate}</th>
-              <th className="p-3 font-medium text-gray-600 border-b text-center">{text.actions}</th>
-            </tr></thead>
-            <tbody>{users.map(u=>(
-              <tr key={u.id} className={`border-b border-gray-100 hover:bg-gray-50 ${editingUser?.user_id===u.user_id?'bg-amber-50':''}`}>
-                <td className="p-3 text-gray-800 font-medium">{u.display_name||'-'}</td>
-                <td className="p-3 text-gray-500 text-xs">{u.email||<span className="text-gray-300">{u.user_id?.slice(0,8)}...</span>}</td>
-                <td className="p-3">
-                  <select value={u.role} onChange={e=>handleChangeRole(u.user_id,e.target.value)}
-                    disabled={u.role==='super_admin'&&currentUserRole!=='super_admin'}
-                    className="border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-400 disabled:opacity-50">
-                    {roles.map(r=><option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                  </select>
-                </td>
-                <td className="p-3 text-xs text-gray-400">{u.created_at?.slice(0,10)}</td>
-                <td className="p-3 text-center">
-                  <div className="flex gap-3 justify-center">
-                    <button onClick={()=>{setEditingUser(u);setEditName(u.display_name||'');setEditEmail(u.email||'');setShowForm(false);setError('')}} className="text-xs text-blue-600 hover:underline">{text.edit}</button>
-                    {u.role!=='super_admin'&&<button onClick={()=>handleDeleteUser(u.user_id)} className="text-xs text-red-500 hover:underline">{text.delete}</button>}
-                  </div>
-                </td>
-              </tr>
-            ))}</tbody>
-          </table>
+        {!showForm && !editingUser && unlinkedCount > 0 && (
+          <button onClick={() => { setShowForm(true); setEditingUser(null); setError('') }}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors">
+            + {text.addUser}
+          </button>
         )}
+      </div>
+
+      {/* 統計條 */}
+      <div className="flex gap-3 mb-4">
+        <div className="flex-1 bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-xs">
+          <span className="text-green-700 font-semibold">{linkedCount}</span>
+          <span className="text-green-600 ml-1">{zh ? '有帳號' : 'with account'}</span>
+        </div>
+        {unlinkedCount > 0 && (
+          <div className="flex-1 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2 text-xs">
+            <span className="text-amber-700 font-semibold">{unlinkedCount}</span>
+            <span className="text-amber-600 ml-1">{zh ? '未建帳號' : 'no account'}</span>
+          </div>
+        )}
+        <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-xs">
+          <span className="text-gray-700 font-semibold">{employees.length}</span>
+          <span className="text-gray-500 ml-1">{zh ? '員工總數' : 'total employees'}</span>
+        </div>
+      </div>
+
+      {/* ✅ 成功提示 + 郵件狀態 Banner */}
+      {success && (
+        <div className="mb-4 rounded-lg overflow-hidden border border-green-200">
+          <div className="p-3 bg-green-50 text-sm text-green-700 font-medium">
+            {success}
+          </div>
+          {emailStatus && (
+            <div className={`px-3 py-2 text-xs flex items-center gap-2 ${emailStatus.sent ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+              <span>{emailStatus.sent ? '📧' : '⚠️'}</span>
+              {emailStatus.sent ? (
+                emailStatus.type === 'invite'
+                  ? (zh ? `邀請郵件已發送至 ${emailStatus.to}` : `Invitation email sent to ${emailStatus.to}`)
+                  : (zh ? `重設密碼郵件已發送至 ${emailStatus.to}` : `Password reset email sent to ${emailStatus.to}`)
+              ) : (
+                zh ? `郵件發送失敗，請手動通知用戶。Email: ${emailStatus.to}` : `Email failed to send. Please notify user manually. Email: ${emailStatus.to}`
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── 新增帳號表單 ── */}
+      {showForm && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-1">
+            {zh ? '新增用戶帳號' : 'Add User Account'}
+          </h3>
+          <p className="text-xs text-gray-400 mb-3">
+            {zh
+              ? '所有帳號必須關聯員工檔案。如員工檔案未建立，請先到「員工管理」新增。'
+              : 'All accounts must be linked to an employee profile.'}
+          </p>
+
+          {error && (
+            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {/* ① 選員工 */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">
+                {zh ? '① 選擇員工記錄 *' : '① Select Employee Record *'}
+              </label>
+              {unlinkedEmployees.length === 0 ? (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-xs text-green-700">
+                  ✓ {zh ? '所有員工已有帳號' : 'All employees already have accounts'}
+                </div>
+              ) : (
+                <select value={newEmployeeId} onChange={e => handleSelectEmployee(e.target.value)}
+                  className={inputClass}>
+                  <option value="">{zh ? '— 請選擇員工 —' : '— Select employee —'}</option>
+                  {unlinkedEmployees.map(e => (
+                    <option key={e.id} value={e.id}>
+                      {e.full_name}{e.position ? ` (${e.position})` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {newEmployeeId && (
+              <>
+                {/* ② Email */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">
+                    {zh ? '② 登入 Email *' : '② Login Email *'}
+                  </label>
+                  <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)}
+                    className={inputClass} placeholder="user@example.com" />
+                  <p className="text-xs text-gray-400 mt-1">
+                    {zh ? '已自動從員工檔案帶入，可修改' : 'Auto-filled from profile, editable'}
+                  </p>
+                </div>
+
+                {/* ③ 密碼 */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">
+                    {zh ? '③ 臨時密碼 *' : '③ Temporary Password *'}
+                  </label>
+                  <div className="relative">
+                    <input type={showNewPwd ? 'text' : 'password'} value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      className={inputClass + ' pr-16'} placeholder="••••••" />
+                    <button type="button" onClick={() => setShowNewPwd(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-medium">
+                      {showNewPwd ? (zh ? '隱藏' : 'Hide') : (zh ? '顯示' : 'Show')}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {zh ? '至少 6 位。系統將同時發送邀請郵件通知用戶。' : 'Min 6 chars. An invitation email will also be sent to the user.'}
+                  </p>
+                </div>
+
+                {/* ④ 角色 */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">
+                    {zh ? '④ 系統角色 *' : '④ System Role *'}
+                  </label>
+                  <select value={newRole} onChange={e => setNewRole(e.target.value)} className={inputClass}>
+                    {roles.filter(r => r !== 'super_admin').map(r => (
+                      <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 摘要 */}
+                <div className="bg-white border border-gray-200 rounded-lg p-3 text-xs text-gray-600 space-y-1">
+                  <div className="font-semibold text-gray-700 mb-1">{zh ? '帳號摘要' : 'Summary'}</div>
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-16">{zh ? '員工' : 'Employee'}</span>
+                    <span className="font-medium">{newName}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-16">Email</span>
+                    <span className="font-medium">{newEmail}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-16">{zh ? '角色' : 'Role'}</span>
+                    <span className="font-medium">{ROLE_LABELS[newRole]}</span>
+                  </div>
+                  <div className="flex gap-2 pt-1 mt-1 border-t border-gray-100">
+                    <span className="text-gray-400 w-16">📧</span>
+                    <span className="text-blue-600">{zh ? '建立後自動發送邀請郵件' : 'Invitation email will be sent on creation'}</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2 mt-4">
+            <button onClick={resetForm}
+              className="px-3 py-1.5 text-xs text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+              {text.cancel}
+            </button>
+            <button onClick={handleCreateUser} disabled={saving || !newEmployeeId}
+              className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700
+                disabled:opacity-50 transition-colors flex items-center gap-1.5">
+              {saving
+                ? <><span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    {zh ? '創建中...' : 'Creating...'}</>
+                : text.createUser}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── 編輯帳號表單 ── */}
+      {editingUser && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            {zh ? `編輯帳號：${editingUser.display_name}` : `Edit: ${editingUser.display_name}`}
+          </h3>
+          {error && (
+            <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">{error}</div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{zh ? '姓名 *' : 'Name *'}</label>
+              <input value={editName} onChange={e => setEditName(e.target.value)} className={inputClass} />
+            </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Email</label>
+            <div className="border border-gray-100 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500">
+              {editEmail || '—'}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              {zh ? '如需修改登入 Email，請聯絡平台管理員' : 'To change login email, contact platform admin'}
+            </p>
+          </div>
+            <div className="col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                {zh ? '重設密碼' : 'Reset Password'}
+              </label>
+              <button type="button" onClick={() => handleSendResetEmail(editingUser.email)}
+                disabled={saving}
+                className="w-full py-2 text-sm border border-blue-300 text-blue-600 rounded-lg
+                  hover:bg-blue-50 disabled:opacity-50 transition-colors">
+                📧 {zh ? `發送重設密碼郵件給 ${editingUser.display_name}` : `Send reset email to ${editingUser.display_name}`}
+              </button>
+              {/* ✅ 郵件狀態提示（在編輯表單內也顯示） */}
+              {emailStatus && !success.includes('更新') && (
+                <div className={`mt-2 text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${emailStatus.sent ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
+                  <span>{emailStatus.sent ? '✅' : '⚠️'}</span>
+                  {emailStatus.sent
+                    ? (zh ? `重設密碼郵件已成功發送至 ${emailStatus.to}` : `Reset email sent to ${emailStatus.to}`)
+                    : (zh ? `郵件發送失敗，請手動通知。Email: ${emailStatus.to}` : `Email failed. Notify manually: ${emailStatus.to}`)}
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={() => { setEditingUser(null); setError(''); setEmailStatus(null) }}
+              className="px-3 py-1.5 text-xs text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50">
+              {text.cancel}
+            </button>
+            <button onClick={handleSaveEdit} disabled={saving}
+              className="px-4 py-1.5 text-xs bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-50">
+              {saving ? '...' : (zh ? '儲存' : 'Save')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── 主列表（以員工為主）── */}
+      {loading ? (
+        <div className="text-sm text-gray-400 py-8 text-center">{text.loading}</div>
+      ) : employees.length === 0 ? (
+        <div className="text-sm text-gray-400 py-8 text-center border-2 border-dashed rounded-xl">
+          {zh ? '尚無員工記錄' : 'No employee records'}
+        </div>
+      ) : (
+        <div className="border border-gray-200 rounded-xl overflow-hidden">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                {[
+                  { key: 'full_name', label: zh ? '員工' : 'Employee' },
+                  { key: 'email',     label: 'Email' },
+                  { key: 'status',    label: zh ? '帳號狀態' : 'Account' },
+                  { key: 'role',      label: text.role },
+                ].map(({ key, label }) => (
+                  <th key={key} onClick={() => handleSort(key)}
+                    className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase
+                      tracking-wide cursor-pointer hover:text-blue-600 select-none">
+                    {label}
+                    {sortKey !== key
+                      ? <span className="ml-1 text-gray-300">↕</span>
+                      : <span className="ml-1 text-blue-500">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                  </th>
+                ))}
+                <th className="text-center px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wide">
+                  {text.actions}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedEmployees.map(emp => {
+                const ur = getUserRole(emp)
+                const hasAccount = !!ur
+                return (
+                  <tr key={emp.id}
+                    className={`border-b border-gray-100 last:border-0 transition-colors
+                      ${!hasAccount ? 'bg-amber-50/40' : 'hover:bg-gray-50'}
+                      ${editingUser?.user_id === emp.auth_user_id ? 'bg-amber-50' : ''}`}>
+
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-800">{emp.full_name}</div>
+                      {emp.position && (
+                        <div className="text-xs text-gray-400 mt-0.5">{emp.position}</div>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      {ur?.email || emp.personal_email || (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {hasAccount ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100
+                          text-green-700 rounded-full text-xs font-medium">
+                          ✅ {zh ? '已建立' : 'Active'}
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100
+                          text-amber-700 rounded-full text-xs font-medium">
+                          ⚠️ {zh ? '無帳號' : 'No account'}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {hasAccount ? (
+                        <select value={ur.role}
+                          onChange={e => handleChangeRole(emp.auth_user_id, e.target.value)}
+                          disabled={ur.role === 'super_admin' && currentUserRole !== 'super_admin'}
+                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs
+                            focus:outline-none focus:ring-2 focus:ring-blue-400
+                            disabled:opacity-50 bg-white">
+                          {roles.map(r => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3 text-center">
+                      {hasAccount ? (
+                        <div className="flex gap-3 justify-center">
+                          <button
+                            onClick={() => {
+                              setEditingUser({ user_id: emp.auth_user_id, ...ur })
+                              setEditName(ur.display_name || '')
+                              setEditEmail(ur.email || '')
+                              setShowForm(false); setError(''); setEmailStatus(null)
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                            {text.edit}
+                          </button>
+                          {ur.role !== 'super_admin' && (
+                            <button onClick={() => handleDeleteUser(emp.auth_user_id)}
+                              className="text-xs text-red-500 hover:text-red-700 hover:underline">
+                              {text.delete}
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => openFormForEmployee(emp)}
+                          className="text-xs px-3 py-1 bg-blue-600 text-white rounded-lg
+                            hover:bg-blue-700 transition-colors">
+                          {zh ? '建立帳號' : 'Create Account'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <p className="mt-4 text-xs text-gray-400">* {text.userMgmtNote}</p>
     </div>
   )

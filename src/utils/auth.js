@@ -2,19 +2,11 @@ import { supabase } from '../supabase'
 
 export async function sendPasswordResetEmail(email, options = {}) {
   if (!email) return { error: 'Please enter your email.' }
-  
-  try {
-    const language = options.language || 'zh'
-    const resetLink = `${window.location.origin}/#reset-password`
 
-    const { error } = await supabase.functions.invoke('send-email', {
-      body: {
-        type: 'password_reset',
-        to: email,
-        resetLink,
-        language,
-      },
-    })
+  try {
+    // ✅ 不傳 redirectTo，讓 Supabase 用 Site URL 做 redirect
+    // App.jsx 的 onAuthStateChange 監聽 PASSWORD_RECOVERY 事件來切換頁面
+    const { error } = await supabase.auth.resetPasswordForEmail(email)
 
     if (error) return { error: error.message }
     return { error: null }
