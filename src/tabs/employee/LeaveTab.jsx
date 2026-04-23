@@ -55,7 +55,7 @@ export default function LeaveTab({ employeeId, companyId, employeeName, text, la
     if (leaveFile) { attachment_url = await uploadAttachment(leaveFile, 'leave'); if (!attachment_url) { setSaving(false); return } }
     await supabase.from('leave_applications').insert([{ employee_id: employeeId, leave_type: form.leave_type, start_date: form.start_date, end_date: form.end_date, days: Number(form.days), reason: form.reason, status: 'pending', attachment_url }])
     try {
-      const { data: approverRow } = await supabase.from('leave_approvers').select('approver1_user_id, approver2_user_id').eq('company_id', companyId).eq('leave_type', form.leave_type).maybeSingle()
+      const { data: approverRow } = await supabase.from('leave_approvers').select('approver1_user_id, approver2_user_id').eq('company_id', companyId).eq('employee_id', employeeId).maybeSingle()
       if (approverRow) {
         const userIds = [approverRow.approver1_user_id, approverRow.approver2_user_id].filter(Boolean)
         if (userIds.length > 0) {

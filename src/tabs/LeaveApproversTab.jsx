@@ -361,9 +361,9 @@ export default function LeaveApproversTab({ text, language, companyId }) {
       setSaving(false)
       return
     }
-    cancelEdit()
-    await loadData()
-    setSaving(false)
+    setSaving(false)   // ← 先停止 saving
+    await loadData()   // ← 再重新加載數據
+    cancelEdit()       // ← 最後才關閉面板
   }
 
   // ── 清除批准人 ──

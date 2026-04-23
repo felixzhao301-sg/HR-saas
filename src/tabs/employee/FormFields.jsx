@@ -1,7 +1,7 @@
 // src/tabs/employee/FormFields.jsx
 import { COUNTRIES, inputClass } from '../../constants'
 
-export default function FormFields({ f, setF, raceOptions, language, text }) {
+export default function FormFields({ f, setF, raceOptions, language, text, hasAccount = false }) {
   return (
     <div className="space-y-4">
       {/* Basic Info */}
@@ -91,8 +91,22 @@ export default function FormFields({ f, setF, raceOptions, language, text }) {
             <div><label className="block text-sm text-gray-600 mb-1">{text.position}</label><input value={f.position} onChange={e=>setF({...f,position:e.target.value})} className={inputClass}/></div>
             <div><label className="block text-sm text-gray-600 mb-1">{text.annualLeave}</label><input type="number" value={f.annual_leave} onChange={e=>setF({...f,annual_leave:e.target.value})} className={inputClass}/></div>
           </div>
-          <div><label className="block text-sm text-gray-600 mb-1">{language==='zh'?'公司電郵':'Work Email'}</label>
-            <input type="email" value={f.work_email||''} onChange={e=>setF({...f,work_email:e.target.value})} className={inputClass} placeholder="name@company.com"/>
+          <div>
+            <label className="block text-sm text-gray-600 mb-1">
+              {language==='zh'?'公司電郵':'Work Email'}
+            </label>
+            {hasAccount ? (
+              <div>
+                <div className="border border-gray-100 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500">
+                  {f.work_email || '—'}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  {language==='zh'?'此為登入帳號電郵，不可修改。如需更改請聯絡系統管理員。':'This is the login email and cannot be changed. Contact your admin to update.'}
+                </p>
+              </div>
+            ) : (
+              <input type="email" value={f.work_email||''} onChange={e=>setF({...f,work_email:e.target.value})} className={inputClass} placeholder="name@company.com"/>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="block text-sm text-gray-600 mb-1">{text.basicSalary}</label><input type="number" value={f.basic_salary} onChange={e=>setF({...f,basic_salary:e.target.value})} className={inputClass}/></div>

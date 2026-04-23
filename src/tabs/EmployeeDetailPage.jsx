@@ -30,6 +30,7 @@ export default function EmployeeDetailPage({
   const emp = employee
   const isResigned = emp.status === 'resigned'
   const isReadOnly = userRole === 'employee'
+  const hasAccount = !!emp.auth_user_id  // ← 新增
 
   const [editMode, setEditMode] = useState(false)
   const [form, setForm] = useState(emptyForm)
@@ -114,7 +115,7 @@ export default function EmployeeDetailPage({
         <button onClick={() => setEditMode(false)} className="text-blue-600 text-sm mb-4 hover:underline">← {text.cancel}</button>
         <div className="bg-white rounded-xl shadow p-6">
           <h3 className="text-lg font-semibold mb-4 text-gray-800">{text.editEmployee}</h3>
-          <FormFields f={form} setF={setForm} raceOptions={raceOptions} language={language} text={text} />
+          <FormFields f={form} setF={setForm} raceOptions={raceOptions} language={language} text={text} hasAccount={hasAccount} />
           <div className="flex justify-end gap-3 mt-6">
             <button onClick={() => setEditMode(false)} className="px-4 py-2 text-sm text-gray-600 border rounded-lg hover:bg-gray-50">{text.cancel}</button>
             <button onClick={saveEdit} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">{saving ? '...' : text.save}</button>
