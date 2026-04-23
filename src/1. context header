@@ -1,511 +1,596 @@
 1. 給我現在目前的Context + 數據字典可以下載的MD 文件，新對話框貼上後你能完全了解目前項目進度結構，不同模塊間的關聯。 需要將優先繼續的和功能需要完善的和其他bug 也總結到context, 這樣我們好繼續。
 2. 在給我個進度記錄
 
-# 【HR SaaS 項目 Context v7.0】（新對話框貼上）
+完整文件結構（所有組件路徑）
+數據字典（14 個主要表，所有欄位）
+系統架構（登入流程、平台進入公司、郵件系統）
+已完成功能清單
+待完成功能（按優先順序）
+已知 Bug 狀態
+重要帳號信息
+App.jsx 關鍵 State 和函數
+下次對話建議起點
 
-## 技術棧
-React + Vite 5.4.0 + Tailwind CSS 4.2.1 + Supabase + Resend
-路徑：C:\Users\Felix\Documents\AI project\AI programing\HR saas
-GitHub: https://github.com/felixzhao301-sg/HR-saas
-Vercel: https://hr-saas-nine.vercel.app
 
----
 
-## 基礎設施
-
-### Supabase
-Project ID: fwztdcparxtnfffkkajh
-
-### 郵件（Resend）
-- 域名：felihr.com（DNS 傳播中，DKIM 已 Verified）
-- 發件人：noreply@felihr.com
-- SMTP 已配置到 Supabase（smtp.resend.com, port 465）
-- API Key: felihr-smtp（All Domains）
-
-### Edge Function
-- 名稱：send-email（已部署 v2）
-- JWT 驗證已關閉
-- 支持：leave_submitted, leave_approved, leave_rejected, password_reset, user_invited, new_company_registered
+# HR SaaS 項目 Context v8.0
+> 最後更新：2026-04-23
+> 新對話框貼上此文件後可完全了解項目狀態
 
 ---
 
-## ✅ 數據庫核心表結構
+## 一、項目基本信息
 
-### employees（實際字段，已確認）
-| 字段名 | 類型 | 說明 |
-|--------|------|------|
-| id | uuid | 主鍵 |
-| full_name | text | |
-| date_of_birth | date | |
-| gender | text | male/female |
-| nationality | text | |
-| race | text | |
-| nric_fin | text | |
-| passport_no | text | |
-| passport_issue_date | date | |
-| passport_expiry_date | date | |
-| is_pr | bool | |
-| pr_year | text | 1/2/3+ |
-| is_seaman | bool | |
-| seaman_no | text | |
-| seaman_expiry | date | |
-| employment_type | text | full_time / part_time |
-| position | text | |
-| basic_salary | numeric | |
-| basic_allowance | numeric | |
-| bank_name | text | |
-| bank_country | text | |
-| bank_account_no | text | ⚠️ 不是 bank_account_number |
-| bank_account_name | text | |
-| bank_remarks | text | |
-| address | text | |
-| annual_leave | int4 | |
-| personal_mobile | text | |
-| personal_email | text | |
-| work_email | text | ✅ 新增 |
-| join_date | date | ✅ 新增 |
-| auth_user_id | uuid | ⚠️ 不是 user_id |
-| company_id | uuid | |
-| created_at | timestamptz | |
-| updated_at | timestamptz | |
+### 技術棧
+- **前端**：React + Vite 5.4.0 + Tailwind CSS 4.2.1
+- **後端**：Supabase (PostgreSQL + Auth + Edge Functions)
+- **郵件**：Resend API（域名 felihr.com）
+- **部署**：Vercel
+- **本地路徑**：`C:\Users\Felix\Documents\AI project\AI programing\HR saas`
+- **GitHub**：https://github.com/felixzhao301-sg/HR-saas
+- **Vercel**：https://hr-saas-nine.vercel.app
+
+### Supabase 項目
+- **Project ID**：fwztdcparxtnfffkkajh
+- **Project URL**：https://fwztdcparxtnfffkkajh.supabase.co
+
+### 公司 ID
+| 公司 | ID |
+|------|----|
+| YLL OFFSHORE SERVICES PTE. LTD. | `57d502e9-206c-4333-82d3-78361875ca28` |
+| Cactus Group Pte. Ltd. | `a3581da0-c7ee-459b-8087-69b7083dd8e8` |
+| Co. TEST1 | 測試公司 |
+
+---
+
+## 二、文件結構
+
+```
+src/
+├── assets/
+├── components/
+│   ├── AttachmentField.jsx
+│   ├── AttachmentLink.jsx
+│   ├── CPFReportModal.jsx
+│   ├── Field.jsx
+│   ├── IR8AModal.jsx           ← 打印彈窗
+│   ├── LoginPage.jsx
+│   ├── Navbar.jsx
+│   ├── PayrollSummaryModal.jsx
+│   ├── PayslipModal.jsx        ← 工資單打印（用 createPortal）
+│   ├── ResignModal.jsx         ← 離職彈窗
+│   ├── ResetPasswordPage.jsx
+│   ├── SubTableForm.jsx
+│   └── Field.jsx
+├── i18n/
+│   └── index.js                ← zh/en/ms 三語言
+├── pages/
+│   ├── PlatformAdminPage.jsx   ← 平台管理（含 Companies + Staff）
+│   └── RegisterPage.jsx
+├── tabs/
+│   ├── CommissionTab.jsx
+│   ├── CompanyDocumentsTab.jsx
+│   ├── DashboardTab.jsx
+│   ├── DropdownSettingsTab.jsx
+│   ├── EmployeeDetailPage.jsx  ← 員工詳情頁（sticky header + iOS profile）
+│   ├── EmployeesTab.jsx        ← 員工列表（~309行）
+│   ├── IR8ATab.jsx
+│   ├── LeaveApproversTab.jsx
+│   ├── LeaveManagementTab.jsx
+│   ├── LeaveTypesTab.jsx
+│   ├── MyLeaveTab.jsx
+│   ├── PayrollTab.jsx
+│   ├── PermissionsTab.jsx
+│   ├── PersonalDocsTab.jsx
+│   ├── SettingsTab.jsx
+│   ├── UserManagementTab.jsx
+│   ├── WorkPassTab.jsx         ← EP/SP/WP 工作準證（多附件）
+│   └── employee/               ← 員工詳情子模塊
+│       ├── BulkUploadModal.jsx
+│       ├── DependentsTab.jsx
+│       ├── EducationTab.jsx
+│       ├── FormFields.jsx      ← hasAccount prop 控制 work_email 只讀
+│       ├── LeaveTab.jsx        ← 員工假期（已修復批准人郵件查詢）
+│       ├── MedicalTab.jsx
+│       ├── RecordsTab.jsx      ← 組合 WorkHistory+Education+Medical+Dependents+Visa
+│       ├── VisaInlineTab.jsx   ← 入境簽證（在 Records Tab 裡）
+│       └── WorkHistoryTab.jsx
+├── utils/
+│   ├── attachments.js
+│   ├── auth.js
+│   ├── email.js
+│   ├── guard.js                ← isPlatformAdmin()
+│   ├── payroll.js              ← CPF 計算引擎
+│   ├── permissions.js
+│   ├── register.js
+│   └── subscription.js
+├── App.jsx                     ← 主路由（已加 handleEnterCompany + enteredFromPlatform）
+├── App.css
+├── constants.js
+├── index.css
+├── main.jsx
+└── supabase.js
+
+supabase/
+└── functions/
+    └── send-email/
+        └── index.ts            ← Edge Function（本地已更新但未部署）
+```
+
+---
+
+## 三、數據庫表結構（數據字典）
 
 ### companies
-| 字段名 | 類型 | 說明 |
-|--------|------|------|
-| id | uuid | |
-| name | text | |
-| uen | text | |
-| address | text | |
-| postal_code | text | |
-| phone | text | |
-| industry | text | |
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| name | text | 公司名稱 |
+| uen | text | 新加坡 UEN |
+| address | text | 地址 |
+| postal_code | text | 郵編 |
+| phone | text | 電話 |
+| industry | text | 行業 |
 | status | text | active/pending/suspended |
-| plan | text | trial/starter/pro/enterprise |
-| trial_ends_at | timestamptz | |
-| subscription_ends_at | timestamptz | |
-| max_employees | int | |
-| stripe_customer_id | text | |
-| created_at | timestamptz | |
+| plan | text | trial/basic/pro/enterprise |
+| trial_ends_at | timestamptz | 試用到期 |
+| subscription_ends_at | timestamptz | 訂閱到期 |
+| max_employees | integer | 最大員工數 |
+| stripe_customer_id | text | Stripe 客戶 ID |
+| created_at | timestamptz | 創建時間 |
+
+### employees
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| company_id | uuid | FK → companies |
+| auth_user_id | uuid | FK → auth.users |
+| full_name | text | 姓名 |
+| date_of_birth | date | 出生日期 |
+| gender | text | male/female |
+| nationality | text | 國籍 |
+| race | text | 種族 |
+| nric_fin | text | NRIC/FIN |
+| address | text | 地址 |
+| personal_mobile | text | 個人手機 |
+| personal_email | text | 個人電郵 |
+| work_email | text | 公司電郵（登入帳號，有帳號後只讀） |
+| passport_no | text | 護照號碼 |
+| passport_issue_date | date | 護照發出日 |
+| passport_expiry_date | date | 護照到期日 |
+| join_date | date | 入職日期 |
+| employment_type | text | full_time/part_time |
+| position | text | 職位 |
+| is_pr | boolean | 是否 PR |
+| pr_year | text | PR 年份（1/2/3+） |
+| is_seaman | boolean | 是否海員 |
+| seaman_no | text | 海員證號 |
+| seaman_expiry | date | 海員證到期 |
+| basic_salary | numeric | 基本工資 |
+| basic_allowance | numeric | 基本津貼 |
+| annual_leave | integer | 年假天數 |
+| bank_name | text | 銀行名稱 |
+| bank_country | text | 銀行國家 |
+| bank_account_no | text | 銀行帳號 |
+| bank_account_name | text | 銀行帳戶名 |
+| bank_remarks | text | 銀行備注 |
+| **status** | text | **active/resigned（新增）** |
+| **resign_date** | date | **離職日期（新增）** |
+| **resign_reason** | text | **離職原因（新增）** |
+| created_at | timestamptz | 創建時間 |
 
 ### user_roles
-| 字段名 | 類型 | 說明 |
-|--------|------|------|
-| id | uuid | |
-| user_id | uuid | = employees.auth_user_id |
-| role | text | |
-| employee_id | uuid | 可為NULL |
-| display_name | text | |
-| email | text | |
-| company_id | uuid | |
-| created_at | timestamptz | |
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| user_id | uuid | FK → auth.users |
+| role | text | 角色（見角色列表）|
+| display_name | text | 顯示名稱 |
+| email | text | 登入電郵 |
+| company_id | uuid | FK → companies（平台角色為 NULL）|
+| employee_id | uuid | FK → employees（可選）|
+| created_at | timestamptz | 創建時間 |
+
+**角色列表：**
+- 公司角色：`super_admin`, `hr_admin`, `hr_staff`, `manager`, `employee`, `finance`, `read_only`
+- 平台角色：`platform_admin`, `platform_staff`
 
 ### leave_approvers
-| 字段名 | 類型 | 說明 |
-|--------|------|------|
-| employee_id | uuid | |
-| approver1_user_id | uuid | ⚠️ 存 auth user id |
-| approver2_user_id | uuid | |
-| require_both | bool | |
-| company_id | uuid | |
-
-### role_permissions
-unique: role + action + company_id
-| 字段名 | 類型 |
-|--------|------|
-| role | text |
-| action | text |
-| allowed | bool |
-| company_id | uuid |
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| employee_id | uuid | FK → employees（UNIQUE）|
+| company_id | uuid | FK → companies |
+| approver1_user_id | uuid | 第一批准人 auth user id |
+| approver2_user_id | uuid | 第二批准人 auth user id（可選）|
+| require_both | boolean | 是否需要雙批 |
 
 ### leave_applications
-| 字段名 | 類型 | 說明 |
-|--------|------|------|
-| id | uuid | |
-| employee_id | uuid | |
-| company_id | uuid | |
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| employee_id | uuid | FK → employees |
 | leave_type | text | annual/medical/unpaid/public_holiday/others |
-| start_date | date | |
-| end_date | date | |
-| days | numeric | |
-| reason | text | |
+| start_date | date | 開始日期 |
+| end_date | date | 結束日期 |
+| days | numeric | 天數 |
+| reason | text | 原因 |
 | status | text | pending/approved/rejected |
-| attachment_url | text | |
+| attachment_url | text | 附件 URL |
+| created_at | timestamptz | 創建時間 |
 
 ### leave_balances
-| 字段名 | 類型 |
-|--------|------|
-| employee_id | uuid |
-| year | int |
-| leave_type | text |
-| entitled | numeric |
-| carried_forward | numeric |
-| adjusted | numeric |
-| used | numeric |
-
----
-
-## ✅ 薪資模塊表結構（新增）
-
-### company_payroll_settings
-| 字段名 | 類型 | 說明 |
-|--------|------|------|
-| id | uuid | |
-| company_id | uuid | unique |
-| work_days_per_week | numeric | 5 / 5.5 / 6 |
-| logo_url | text | Supabase Storage |
-| cpf_submission_no | text | CPF EZPay 提交號碼 |
-| payslip_footer | text | 工資單頁腳文字 |
-| created_at | timestamptz | |
-| updated_at | timestamptz | |
-
-### payroll_working_days
-| 字段名 | 類型 | 說明 |
-|--------|------|------|
-| id | uuid | |
-| company_id | uuid | |
-| year | int | |
-| month | int | 1-12 |
-| working_days_5day | int | |
-| working_days_5half | numeric | |
-| working_days_6day | int | |
-unique: company_id + year + month
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| employee_id | uuid | FK → employees |
+| company_id | uuid | FK → companies |
+| year | integer | 年份 |
+| leave_type | text | 假期類型 |
+| entitled | numeric | 應得天數 |
+| carried_forward | numeric | 結轉天數 |
+| adjusted | numeric | 額外調整 |
+| used | numeric | 已用天數 |
+| UNIQUE | - | (employee_id, year, leave_type) |
 
 ### payroll_runs
-| 字段名 | 類型 | 說明 |
-|--------|------|------|
-| id | uuid | |
-| company_id | uuid | |
-| year | int | |
-| month | int | |
-| status | text | draft / confirmed / locked |
-| working_days | numeric | |
-| payment_date | date | |
-| locked_at | timestamptz | |
-| locked_by | uuid | |
-| created_by | uuid | |
-unique: company_id + year + month
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| company_id | uuid | FK → companies |
+| year | integer | 年份 |
+| month | integer | 月份 |
+| status | text | draft/finalized |
+| finalized_at | timestamptz | 確認時間 |
+| created_at | timestamptz | 創建時間 |
 
 ### payroll_records
-每員工每月薪資記錄：
-- **員工快照**（Lock時保存）：snap_name, snap_nric, snap_position, snap_nationality, snap_dob, snap_is_pr, snap_pr_year, snap_bank_name, snap_bank_account_no, snap_join_date
-- **OW 收入**：basic_salary, fixed_allowance, other_allowance(+desc), overtime(+desc), unutilised_leave_pay(+desc)
-- **AW 收入**：bonus(+desc), commission
-- **CPF Exempt**：director_fee(+desc)
-- **無薪假**：unpaid_leave_days, unpaid_leave_amount
-- **計算結果**：gross_salary, ow_subject_to_cpf, aw_subject_to_cpf
-- **CPF**：cpf_rate_employer, cpf_rate_employee, employer_cpf, employee_cpf, total_cpf
-- **法定**：sdl, fwl, cdac_mbmf_sinda(+type)
-- **扣款**：total_deduction, net_pay
-- **調整**：other_adjustments(jsonb [{desc,amount}]), other_adjustments_total, net_pay_after_adjustments
-- **合計**：total_company_paid, payment_date
-- **YTD 快照**（Lock時計算）：ytd_basic, ytd_fixed_allowance, ytd_other_allowance, ytd_overtime, ytd_bonus, ytd_commission, ytd_director_fee, ytd_unutilised_leave, ytd_unpaid_leave, ytd_gross, ytd_employer_cpf, ytd_employee_cpf, ytd_sdl, ytd_fwl, ytd_cdac, ytd_net_pay, ytd_other_adjustments, ytd_total_company_paid, ytd_ow_for_cpf, aw_ceiling_remaining
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| payroll_run_id | uuid | FK → payroll_runs |
+| employee_id | uuid | FK → employees |
+| basic_salary | numeric | 基本工資快照 |
+| basic_allowance | numeric | 基本津貼快照 |
+| commission | numeric | 佣金 |
+| bonus | numeric | 獎金 |
+| other_income | numeric | 其他收入 |
+| cpf_employee | numeric | 員工 CPF |
+| cpf_employer | numeric | 僱主 CPF |
+| sdl | numeric | SDL |
+| deductions | numeric | 其他扣除 |
+| net_pay | numeric | 實發工資 |
+| gross_pay | numeric | 總薪資 |
 
-unique: payroll_run_id + employee_id
+### company_payroll_settings
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| company_id | uuid | FK → companies（UNIQUE）|
+| working_days | integer | 每月工作天數（默認 26）|
+| sdl_rate | numeric | SDL 比率 |
+| include_allowance_in_cpf | boolean | 津貼是否計入 CPF |
 
 ### commissions
-| 字段名 | 類型 | 說明 |
-|--------|------|------|
-| id | uuid | |
-| employee_id | uuid | |
-| company_id | uuid | |
-| year | int | |
-| month | int | |
-| amount | numeric | |
-| description | text | |
-| status | text | draft / confirmed |
-| confirmed_by | uuid | |
-| confirmed_at | timestamptz | |
-| created_by | uuid | |
-unique: employee_id + year + month
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| employee_id | uuid | FK → employees |
+| company_id | uuid | FK → companies |
+| year | integer | 年份 |
+| month | integer | 月份 |
+| amount | numeric | 金額 |
+| description | text | 說明 |
+| created_at | timestamptz | 創建時間 |
+
+### employee_visa（工作準證 Work Pass）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| employee_id | uuid | FK → employees |
+| visa_type | text | EP/SP/WP/DP/LTVP/PEP/EntrePass/Others |
+| visa_number | text | 準證號碼 |
+| **application_date** | date | **申請日期（新增）** |
+| issue_date | date | 發出日期 |
+| expiry_date | date | 到期日期 |
+| issued_by | text | 發出機構（MOM）|
+| remarks | text | 備注 |
+| attachment_url | text | 舊版單附件（已廢棄，用 attachments 表）|
+
+### employee_visa_attachments（Work Pass 多附件）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| visa_id | uuid | FK → employee_visa |
+| file_name | text | 文件名 |
+| attachment_url | text | 文件 URL |
+| created_at | timestamptz | 創建時間 |
+
+### employee_personal_docs（個人文件）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| employee_id | uuid | FK → employees |
+| company_id | uuid | FK → companies |
+| doc_type | text | 文件類型 |
+| file_name | text | 文件名 |
+| attachment_url | text | 文件 URL |
+| remarks | text | 備注 |
+| created_at | timestamptz | 創建時間 |
+
+### employee_documents（公司信件/文件）
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| employee_id | uuid | FK → employees |
+| company_id | uuid | FK → companies |
+| created_by | uuid | FK → auth.users |
+| doc_type | text | offer_letter/increment/warning/others |
+| title | text | 標題 |
+| content | text | 內容 |
+| attachment_url | text | 附件 URL |
+| created_at | timestamptz | 創建時間 |
+
+### employee_work_history / employee_education / employee_medical / employee_dependents
+標準子表，各有 `employee_id` FK，不詳列。
+
+### dropdown_options
+| 欄位 | 類型 | 說明 |
+|------|------|------|
+| id | uuid | PK |
+| company_id | uuid | FK → companies |
+| category | text | race 等 |
+| value | text | 選項值 |
+| label_zh | text | 中文標籤 |
+| label_en | text | 英文標籤 |
+| sort_order | integer | 排序 |
 
 ---
 
-## 公司 ID
-- YLL ID: 57d502e9-206c-4333-82d3-78361875ca28（plan=trial，到期 2026-05-11）
-- CG ID: a3581da0-c7ee-459b-8087-69b7083dd8e8
+## 四、系統架構
+
+### 登入流程
+```
+用戶登入
+  → isPlatformAdmin(userId)?
+      → YES: 顯示 PlatformAdminPage
+      → NO: 查 user_roles → 獲取 role + company_id
+          → checkCompanyValid() → 檢查 status/trial/subscription
+              → 無效: BlockedScreen
+              → 有效: 主系統
+```
+
+### 平台 Admin 進入公司
+```
+PlatformAdminPage → 點 🚀 Enter
+  → handleEnterCompany(company) in App.jsx
+      → setIsPlatformAdminMode(false)
+      → setEnteredFromPlatform(true)
+      → setCompanyId / setUserRole('super_admin')
+  → 頂部 Navbar 顯示黃色 ← Platform 按鈕
+```
+
+### 郵件系統
+- **服務**：Resend API
+- **發件人**：`HR SaaS <noreply@felihr.com>`
+- **Edge Function**：`supabase/functions/send-email/index.ts`
+- **郵件類型**：
+  - `password_reset` — 重設密碼
+  - `user_invited` — 帳號創建邀請（公司員工 + 平台員工）
+  - `new_company_registered` — 新公司註冊通知
+  - `leave_submitted` — 假期申請通知批准人
+  - `leave_approved` — 假期批准通知
+  - `leave_rejected` — 假期拒絕通知
+
+### CPF 計算
+- 文件：`src/utils/payroll.js`
+- 馬來西亞員工無 CPF（正確行為）
+- PR 員工按年份有不同比率
 
 ---
 
-## 用戶清單
+## 五、員工詳情頁面結構
 
-### 平台
-- felix.zhao301@gmail.com (platform_admin) 密碼: 301230zpp
-- kelvin@cloudland.sg (platform_staff)
-- leewun.ang@gmail.com (platform_staff)
+### Tab 結構
+| Tab | 內容 | 組件 |
+|-----|------|------|
+| 👤 資料 | 基本資料/工作資料/護照/銀行（iOS 設置風格） | EmployeeDetailPage.jsx |
+| 🌏 工作準證 | EP/SP/WP 等（多附件） | WorkPassTab.jsx |
+| 📁 個人文件 | CV/護照/地址證明等上傳 | PersonalDocsTab.jsx |
+| 📋 記錄 | 工作經歷/學歷/醫療/家屬/簽證 | RecordsTab.jsx |
+| 🏢 公司文件 | 入職信/加薪信/警告信等 | CompanyDocumentsTab.jsx |
+| 🌴 假期 | 餘額/申請/記錄 | LeaveTab.jsx |
 
-### YLL (57d502e9)
-- fzhao@ylloffshore.com (super_admin) 密碼: 301230
-- salleychuhuichyi@gmail.com (hr_staff)
-- anderson.gawan@gmail.com (hr_staff)
-- steven@ylloffshore.com (employee)
-- aaron@ylloffshore.com (employee)
-- anderson@ylloffshore.com.sg (employee)
-- salley@ylloffshore.com (employee)
-
-### CG (a3581da0)
-- felix@cactusgroup.com.sg (super_admin) 密碼: 123456789
-- feliannsg@gmail.com (hr_staff) 密碼: 1212123
-- cpa3@cactusgroup.com.sg (employee)
+### 重要設計決策
+- `work_email` 有帳號後只讀（`hasAccount` prop）
+- Work Pass = EP/SP/WP 工作準證（WorkPassTab）
+- Visa = 入境簽證 Tourist/Business 等（VisaInlineTab，在 Records 裡）
+- 員工離職用 Soft Delete（`status = 'resigned'`，保留薪資快照）
 
 ---
 
-## 訂閱計劃
+## 六、平台管理頁面結構
+
+### Tab 結構
+| Tab | 功能 |
+|-----|------|
+| 🏢 Companies | 公司列表、詳情查看、編輯、Activate/Suspend |
+| 👥 Staff | 平台員工管理（Admin/Staff 角色）|
+
+### 平台角色權限
+| 角色 | 權限 |
+|------|------|
+| `platform_admin` | 全部功能，管理員工和公司 |
+| `platform_staff` | 只能查看公司、進入公司系統 |
+
+### 平台員工帳號
+| 人員 | Email | 角色 |
+|------|-------|------|
+| Felix Zhao | felix.zhao301@gmail.com | platform_admin |
+| Lee Wun | leewun.ang@gmail.com | platform_staff |
+
+---
+
+## 七、已完成功能清單
+
+### ✅ 核心功能
+- [x] 多公司 SaaS 架構
+- [x] 平台 Admin / 公司 Admin 分層
+- [x] 試用期管理（Banner + BlockedScreen）
+- [x] 三語言（中文/英文/馬來文）
+- [x] 角色權限系統
+- [x] 員工 CRUD + Soft Delete 離職
+- [x] 批量上傳員工（Excel/CSV）
+- [x] 工作準證管理（多附件）
+- [x] 個人文件管理
+- [x] 公司文件管理
+- [x] 工作記錄/學歷/醫療/家屬/簽證
+- [x] 假期申請 + 批准人通知郵件
+- [x] 假期餘額管理
+- [x] 薪資計算（CPF + SDL）
+- [x] 工資單打印
+- [x] 佣金管理
+- [x] IR8A Tab
+- [x] 忘記密碼郵件
+- [x] 用戶管理（創建/編輯/角色）
+- [x] 平台公司詳情+編輯
+- [x] 平台員工管理
+- [x] 進入公司系統（平台→公司）
+- [x] 員工 Profile iOS 設置風格 + Sticky Header
+
+---
+
+## 八、待完成功能（優先順序）
+
+### 🔴 高優先
+1. **假期批准/拒絕功能**
+   - `LeaveManagementTab.jsx` 需要加批准/拒絕按鈕
+   - 批准後更新 `leave_balances.used`
+   - 發郵件通知員工（`leave_approved` / `leave_rejected`）
+
+2. **IR8A 年度生成**
+   - `IR8ATab.jsx` 已有 UI
+   - 需要實際生成邏輯（從 payroll_records 彙總）
+   - 打印功能（IR8AModal.jsx）
+
+3. **Edge Function 部署**
+   - 本地 `index.ts` 已更新（修復 `companyId: null` 問題）
+   - 需要安裝 Supabase CLI 並部署
+   - 或通過 GitHub Actions 自動部署
+   - 影響：公司員工邀請郵件目前只有 role=employee 才發
+
+4. **年度結算流程**
+   - 結轉年假（carried_forward）
+   - 清除舊年度已離職員工
+   - IR8A 批量生成
+
+### 🟡 中優先
+5. **薪資工作日設置 UI**
+   - `company_payroll_settings.working_days` 已有欄位
+   - 需要在 SettingsTab 加 UI
+
+6. **兼職薪資計算**
+   - 按工作天數計算
+   - 需要在 PayrollTab 加邏輯
+
+7. **LeaveManagementTab 改善**
+   - 目前缺少批量操作
+   - 需要加按月/按假期類型篩選
+
+8. **報告功能（平台）**
+   - 各公司員工數統計
+   - 訂閱到期提醒
+   - 活躍度統計
+
+### 🔵 低優先
+9. **Supabase Storage bucket `company-assets`**
+   - 公司 Logo 上傳
+
+10. **手機號登錄**
+    - 暫時不做，等 Phase 2
+
+11. **Stripe 接入**
+    - 自動收費
+
+---
+
+## 九、已知 Bug
+
+| Bug | 狀態 | 說明 |
+|-----|------|------|
+| Edge Function `companyId: null` | ⚠️ 本地已修，未部署 | 平台員工邀請郵件走前端繞過 |
+| LeaveApproversTab 保存後需刷新 | ✅ 已修 | 改了 cancelEdit/loadData 順序 |
+| Work Pass Tab 文件路徑 | ✅ 已修 | 移到 src/tabs/ |
+| 假期申請批准人查詢 | ✅ 已修 | 改用 employee_id 而非 leave_type |
+| PayslipModal 打印空白 | ✅ 已修 | 用 createPortal |
+| Anderson 重複帳號 | ✅ 已清理 | 保留 anderson@ylloffshore.com |
+
+---
+
+## 十、重要帳號信息
+
+### 測試帳號
+| 帳號 | 密碼 | 角色 |
+|------|------|------|
+| fzhao@ylloffshore.com | （已設定）| YLL super_admin |
+| felix.zhao301@gmail.com | （已設定）| platform_admin |
+| anderson@ylloffshore.com | （已設定）| YLL employee |
+| leewun.ang@gmail.com | （已設定）| platform_staff |
+
+### YLL 員工 Auth User IDs（重要）
+- Felix Zhao (fzhao): `75dc2b39-1801-4a5a-bde1-420e0a752928`
+- Anderson (employee): `741cfe71-c15a-469a-ac7f-4a619c940400`
+
+---
+
+## 十一、App.jsx 關鍵 State
+
 ```js
-PLANS = {
-  trial:      { maxEmployees: 20,   durationDays: 30  },
-  starter:    { maxEmployees: 50,   durationDays: 365 },
-  pro:        { maxEmployees: 200,  durationDays: 365 },
-  enterprise: { maxEmployees: 9999, durationDays: 365 },
+// 平台相關
+const [isPlatformAdminMode, setIsPlatformAdminMode] = useState(false)
+const [enteredFromPlatform, setEnteredFromPlatform] = useState(false)
+
+// 公司相關
+const [companyId, setCompanyId] = useState(null)
+const [companyName, setCompanyName] = useState('')
+const [userRole, setUserRole] = useState(null)
+const [permissions, setPermissions] = useState({})
+
+// 試用期
+const [trialDaysLeft, setTrialDaysLeft] = useState(null)
+const [companyBlocked, setCompanyBlocked] = useState(false)
+const [blockReason, setBlockReason] = useState(null)
+```
+
+### handleEnterCompany（平台進入公司）
+```js
+async function handleEnterCompany(company) {
+  setIsPlatformAdminMode(false)
+  setEnteredFromPlatform(true)
+  setCompanyId(company.id)
+  setCompanyName(company.name)
+  setUserRole('super_admin')
+  setUserDisplayName('Platform Admin')
+  const perms = await loadPermissions(company.id, 'super_admin')
+  setPermissions(perms)
+  fetchRaceOptions()
+  setMainTab('dashboard')
+  setTrialDaysLeft(null)
+  setCompanyBlocked(false)
 }
 ```
 
 ---
 
-## 核心設計原則
-1. 所有人必須有 Employee Profile（包括 Super Admin）
-2. 所有人必須有登錄帳號
-3. 帳號和 Profile 1:1（通過 employees.auth_user_id）
-4. 創建帳號用 Edge Function（action: 'create-user'），不用 supabase.auth.signUp()
-5. employee 角色只能查看自己資料（isReadOnly = true）
+## 十二、下一步建議
+
+**下次對話從這裡開始：**
+
+1. **假期批准/拒絕功能**（最重要，因為用戶已能申請但無法批准）
+2. **IR8A 生成邏輯**
+3. **Edge Function 部署**（安裝 Supabase CLI）
+4. **年度結算流程**
 
 ---
 
-## 架構
-多公司 SaaS，三層角色：
-1. platform_admin → PlatformAdminPage.jsx
-2. super_admin/hr_admin/hr_staff/manager/finance/read_only → 主系統
-3. employee → 登入直接進自己的 employee profile 頁面（只讀）
-
-### App.jsx 路由
-authLoading → isPlatformAdminMode → showRegister → resetPasswordMode → !currentUser → companyBlocked → 主系統
-
-### 登入後路由
-- employee 角色 → setSelectedEmployee(empData) + setMainTab('employees')
-- 其他角色 → setMainTab('dashboard')
-
----
-
-## 文件結構
-```
-src/
-  i18n/
-    index.js                ✅ 語言文字（zh/en/ms），從App.jsx拆出
-  components/
-    LoginPage.jsx
-    ResetPasswordPage.jsx
-    Field.jsx
-    AttachmentLink.jsx
-    AttachmentField.jsx
-    SubTableForm.jsx
-    PayslipModal.jsx        ✅ 工資單打印Modal（window.print，含文件名）
-    CPFReportModal.jsx      ✅ CPF匯總報告（對應CPF EZPay格式）
-    PayrollSummaryModal.jsx ✅ 全公司月度工資匯總報告
-  pages/
-    RegisterPage.jsx
-    PlatformAdminPage.jsx
-  tabs/
-    DashboardTab.jsx
-    EmployeesTab.jsx        ✅ work_email字段已加，employee只讀
-    LeaveManagementTab.jsx
-    MyLeaveTab.jsx
-    LeaveApproversTab.jsx
-    LeaveTypesTab.jsx
-    UserManagementTab.jsx   ✅ 創建帳號郵件確認toast
-    PermissionsTab.jsx
-    SettingsTab.jsx         ✅ 加薪資設置（工作天數/Logo/CPF提交號碼）
-    DropdownSettingsTab.jsx
-    PayrollTab.jsx          ✅ 薪資管理主模塊（僅full_time）
-    CommissionTab.jsx       ✅ 佣金管理（draft→confirmed）
-  utils/
-    email.js
-    auth.js
-    permissions.js
-    register.js
-    guard.js
-    subscription.js
-    attachments.js
-    payroll.js              ✅ CPF計算引擎（2026年率）
-```
-
----
-
-## 薪資模塊設計
-
-### CPF 計算規則（2026年率）
-| 年齡 | 雇主% | 員工% | 合計 |
-|------|-------|-------|------|
-| ≤55 | 17% | 20% | 37% |
-| 55-60 | 16% | 18% | 34% |
-| 60-65 | 12.5% | 12.5% | 25% |
-| 65-70 | 9% | 7.5% | 16.5% |
-| >70 | 7.5% | 5% | 12.5% |
-
-- OW 上限 2026：$8,000/月
-- AW 年度上限：$102,000 - 年度OW已計CPF
-- PR 1/2 年有過渡比率（第3年起同公民）
-- WP/EP 外勞：CPF=0，有FWL
-
-### 收入欄位分類
-| 欄位 | CPF | Gross | 稅 | 備注 |
-|------|-----|-------|-----|------|
-| Basic Salary | OW ✅ | ✅ | ✅ | 自動帶入 |
-| Fixed Allowance | OW ✅ | ✅ | ✅ | 自動帶入 |
-| Other Allowance | OW ✅ | ✅ | ✅ | 手動+描述 |
-| Overtime/Other | OW ✅ | ✅ | ✅ | 手動+描述 |
-| Bonus/AWS | AW ✅ | ✅ | ✅ | 手動+描述，有年度上限 |
-| Commission | AW ✅ | ✅ | ✅ | 從佣金模塊帶入 |
-| Director Fee | ❌ | ✅ | ✅ | 手動+描述，不交CPF但報IRAS |
-| Unutilised Leave | OW ✅ | ✅ | ✅ | 手動+描述 |
-| Unpaid Leave | 按扣後 | 負數 | ✅ | MOM公式自動計算 |
-| Other Adjustments | ❌ | ❌ | ❌ | 多行，可正可負，純現金調整 |
-
-### 薪資流程
-```
-Draft → Confirmed → Locked（不可逆）
-```
-- Draft：可自由編輯
-- Confirmed：HR審核完成，需Super Admin解鎖才能改
-- Locked：已付款，觸發YTD快照計算，不可修改
-- 錯誤修正：下月 Other Adjustments 補差額
-
-### 無薪假計算（MOM公式）
-```
-扣款 = 基本薪資 ÷ 當月工作天數 × 無薪假天數
-```
-
-### 報告
-- 📄 工資單（PayslipModal）：每人一張，window.print()，文件名格式：`NAME_Payslip_Apr2026.pdf`
-- 🏦 CPF 匯總（CPFReportModal）：對應 CPF EZPay 格式
-- 📋 工資匯總（PayrollSummaryModal）：全公司當月，含銀行轉帳明細
-
----
-
-## 權限系統
-```
-員工管理: employee.view_list / create / edit / delete
-薪酬管理: salary.view_all / edit
-醫療記錄: medical.view_all / edit
-簽證管理: visa.view_all / edit
-年假管理: leave.apply / approve / manage
-系統管理: system.manage_dropdown / manage_users / manage_roles
-薪資管理: payroll.view / edit / lock / report    ✅ 新增
-佣金管理: commission.edit                         ✅ 新增
-```
-- Super Admin 擁有全部權限
-- payroll.lock 由 hr_admin / super_admin 執行
-- employee 角色：isReadOnly=true
-
----
-
-## i18n 架構
-```
-src/i18n/index.js
-  export const i18n = { zh:{...}, en:{...}, ms:{...} }
-
-App.jsx
-  import { i18n } from './i18n'
-  const text = i18n[language] || i18n.en
-```
-新增文字只改 i18n/index.js，App.jsx 不動。
-
----
-
-## Supabase Storage
-- bucket：`company-assets`（需設為 Public）⚠️ 需要手動建立
-- 路徑：`logos/{company_id}/logo.{ext}`
-- 用途：工資單 Logo
-
----
-
-## 模塊間關聯
-```
-employees.auth_user_id ↔ user_roles.user_id（帳號和Profile橋樑）
-leave_approvers.approver_user_id → employees.auth_user_id
-leave_applications.employee_id → employees.id
-leave_balances.employee_id → employees.id
-payroll_records.employee_id → employees.id
-payroll_records.payroll_run_id → payroll_runs.id
-commissions.employee_id → employees.id
-company_payroll_settings.company_id → companies.id
-payroll_runs.company_id → companies.id
-```
-
----
-
-## 🔴 待完成（優先級排序）
-
-### 🚨 緊急 / 下次優先
-1. **Supabase Storage bucket 建立**
-   - 建 `company-assets` bucket → 設為 Public
-   - 否則 SettingsTab Logo 上傳功能無法工作
-
-2. **工資單打印格式測試**
-   - 測試 Chrome 打印 → 存為 PDF
-   - 確認 inline style 版面在打印時正確
-   - 文件名已實現：`NAME_Payslip_Apr2026.pdf`
-
-3. **CPF 報告數字對比**
-   - 對比實際 CPF EZPay 樣本確認計算正確
-
-4. **YTD 顯示為 0 的問題**
-   - Lock 薪資後確認 YTD 快照計算正確
-   - Draft/Confirmed 狀態 YTD=0 是設計行為
-
-### 📋 中優先
-5. **DNS 驗證完成後測試郵件**
-   - 邀請郵件（user_invited）
-   - 假期通知、忘記密碼
-
-6. **UserManagementTab 創建帳號郵件 toast**
-   - 代碼已寫，需要 Edge Function 回傳 emailSent 欄位
-   - 目前 Edge Function 未回傳此值
-
-7. **兼職員工薪資計算**
-   - 接口已預留（part_time 被過濾不顯示）
-   - 需設計計算公式（按實際工作天數）
-
-8. **年度 Close 流程**
-   - 12月Lock → Leave Carry Forward → AW Ceiling重置
-   - IR8A 報稅資料準備
-
-9. **payroll_working_days 表 UI**
-   - 2026年數據已在 payroll.js hardcode（WORKING_DAYS_2026）
-   - 需建UI讓HR可調整每月工作天數（處理公眾假期）
-
-10. **SettingsTab 工作天數 → PayrollTab 聯動測試**
-    - PayrollTab 已讀取 company_payroll_settings
-    - 需確認設置後薪資計算使用正確工作天數
-
-### 🔵 低優先
-11. **Mobile 版加忘記密碼入口**
-12. **test@test.com 測試帳號清理**（Supabase Auth 有殘留）
-13. **試用期到期阻擋畫面測試**（邏輯已寫未測）
-
----
-
-## 🟢 未來大功能
-1. **Stripe 訂閱接入**（subscription.js 已預留 upgradePlan 接口）
-2. **CPF API 接入**（Phase 2：直接提交 CPF EZPay）
-3. **IR8A 年度報稅報告生成**
-4. **兼職薪資計算模塊**
-5. **考勤排班模塊**
-6. **Claim 報銷模塊**
-7. **公司公告模塊**
-8. **薪資 PDF 升級**（現用 window.print，未來可接 Puppeteer）
-
----
-
-## ⚠️ 常見陷阱（必讀）
-- `employees.auth_user_id`（不是 user_id）← 關聯 Auth 帳號
-- `leave_approvers.approver1/2_user_id` 存的是 auth user id，不是 employee.id
-- `employees` 銀行帳號字段：`bank_account_no`（不是 bank_account_number）
-- platform_admin 無 company_id，loadUserRole 先調 isPlatformAdmin()
-- 權限 key 用 dot notation：`employee.view_list`
-- 創建用戶必須用 Edge Function（action: 'create-user'），不能用 supabase.auth.signUp()
-- Edge Function JWT 驗證已關閉
-- 薪資計算 calculatePayroll() 回傳 4 個 meta 欄位不能 spread 進 DB：`cpf_applicable, cpf_age, fund_type, ow_for_cpf_this_month` → 用 cleanCalc() 處理
-- PayrollTab 只顯示 `employment_type='full_time'` 員工
-- YTD 在 Lock 前為 0，Lock 後才有快照值（設計如此）
-- Director Fee：計入 Gross，不交 CPF，需報 IRAS
-- Other Adjustments：不計 Gross，不交 CPF/稅，純現金調整
-- 工資單打印文件名通過 `document.title` 設置，打印後需還原
+*Context v8.0 — 2026-04-23*

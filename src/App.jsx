@@ -242,6 +242,7 @@ function App() {
   const [resetPasswordMode, setResetPasswordMode] = useState(false)
   const [showRegister, setShowRegister] = useState(false)
   const [isPlatformAdminMode, setIsPlatformAdminMode] = useState(false)
+  const [enteredFromPlatform, setEnteredFromPlatform] = useState(false)
 
   // ── Guard 狀態 ──
   const [companyBlocked, setCompanyBlocked] = useState(false)
@@ -325,6 +326,21 @@ function App() {
     await supabase.auth.signOut()
   }
 
+  async function handleEnterCompany(company) {
+    setIsPlatformAdminMode(false)
+    setEnteredFromPlatform(true)
+    setCompanyId(company.id)
+    setCompanyName(company.name)
+    setUserRole('super_admin')
+    setUserDisplayName('Platform Admin')
+    const perms = await loadPermissions(company.id, 'super_admin')
+    setPermissions(perms)
+    fetchRaceOptions()
+    setMainTab('dashboard')
+    setTrialDaysLeft(null)
+    setCompanyBlocked(false)
+  }
+
   async function fetchRaceOptions() {
     const { data } = await supabase.from('dropdown_options').select('value,label_zh,label_en').eq('category', 'race').order('sort_order')
     if (data) setRaceOptions(data)
@@ -335,7 +351,12 @@ function App() {
       <div className="text-gray-400 text-sm">{language === 'zh' ? '載入中...' : 'Loading...'}</div>
     </div>
   )
-  if (isPlatformAdminMode) return <PlatformAdminPage onLogout={handleLogout} />
+  if (isPlatformAdminMode) return (
+    <PlatformAdminPage
+      onLogout={handleLogout}
+      onEnterCompany={handleEnterCompany}
+    />
+  ) 
   if (showRegister) return <RegisterPage language={language} onBackToLogin={() => setShowRegister(false)} />
   if (resetPasswordMode) return (
     <ResetPasswordPage language={language} onDone={() => { setResetPasswordMode(false); supabase.auth.signOut() }} />
@@ -378,6 +399,19 @@ function App() {
             <div className="text-white font-medium text-sm">{userDisplayName || currentUser.email}</div>
             {userDisplayName && <div className="text-blue-200 text-xs">{currentUser.email}</div>}
           </div>
+          {enteredFromPlatform && (
+            <button
+              onClick={() => {
+                setIsPlatformAdminMode(true)
+                setEnteredFromPlatform(false)
+                setCompanyId(null)
+                setUserRole(null)
+                setPermissions({})
+              }}
+              className="text-xs bg-yellow-400 text-gray-900 px-2 py-1 rounded-lg font-medium hover:bg-yellow-300 whitespace-nowrap">
+              ← Platform
+            </button>
+          )}
           <select value={language} onChange={e => setLanguage(e.target.value)}
             className="bg-white text-blue-700 px-1 py-1 rounded text-xs font-medium border-0 cursor-pointer">
             <option value="zh">中文</option>

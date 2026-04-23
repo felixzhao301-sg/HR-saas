@@ -18,11 +18,8 @@ async function handleSendEmail(payload: any) {
   const {
     type, to, employeeName, leaveType, startDate, endDate,
     days, reason, resetLink, language,
-    // 新增用戶邀請
     inviteeName, inviteeEmail, companyName, loginUrl,
-    // 新公司註冊通知
     companyUen, adminName, adminEmail,
-    // 批准人名字
     approverName,
   } = payload;
 
@@ -46,26 +43,31 @@ async function handleSendEmail(payload: any) {
       </div>
     `;
   } else if (type === "user_invited") {
-    // 員工收到邀請郵件
-    subject = isZh ? `【${companyName}】您的 HR 系統帳號已建立` : `[${companyName}] Your HR System Account is Ready`;
+    subject = companyName === "Platform"
+      ? `[HR SaaS Platform] Your Platform Staff Account is Ready`
+      : isZh ? `【${companyName}】您的 HR 系統帳號已建立` : `[${companyName}] Your HR System Account is Ready`;
     html = `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px;">
-        <h2 style="color:#1d4ed8;">👋 ${isZh ? "歡迎加入 HR 系統" : "Welcome to the HR System"}</h2>
-        <p>${isZh ? `您好 ${inviteeName}，` : `Hi ${inviteeName},`}</p>
-        <p>${isZh ? `${companyName} 已為您建立 HR 系統帳號，請點擊下方按鈕設定您的密碼後登入。` : `${companyName} has created an HR system account for you. Please click below to set your password.`}</p>
+        <h2 style="color:#1d4ed8;">👋 ${companyName === "Platform" ? "Welcome to HR SaaS Platform" : isZh ? "歡迎加入 HR 系統" : "Welcome to the HR System"}</h2>
+        <p>${isZh && companyName !== "Platform" ? `您好 ${inviteeName}，` : `Hi ${inviteeName},`}</p>
+        <p>${companyName === "Platform"
+          ? `You have been added as a Platform Staff member of the HR SaaS Management Console. Please use the link below to set your password.`
+          : isZh
+            ? `${companyName} 已為您建立 HR 系統帳號，請點擊下方按鈕設定您的密碼後登入。`
+            : `${companyName} has created an HR system account for you. Please click below to set your password.`
+        }</p>
         <div style="text-align:center;margin:24px 0;">
           <a href="${loginUrl}" style="background:#1d4ed8;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-            ${isZh ? "設定密碼並登入" : "Set Password & Login"}
+            ${isZh && companyName !== "Platform" ? "設定密碼並登入" : "Set Password & Login"}
           </a>
         </div>
         <div style="background:#f3f4f6;border-radius:8px;padding:16px;margin:16px 0;">
-          <p style="margin:0;font-size:13px;color:#6b7280;">${isZh ? "登入帳號：" : "Login Email:"} <strong style="color:#111827;">${inviteeEmail}</strong></p>
+          <p style="margin:0;font-size:13px;color:#6b7280;">${isZh && companyName !== "Platform" ? "登入帳號：" : "Login Email:"} <strong style="color:#111827;">${inviteeEmail}</strong></p>
         </div>
-        <p style="color:#6b7280;font-size:13px;">${isZh ? "此連結有效期為 24 小時。如有問題請聯絡 HR 部門。" : "This link is valid for 24 hours. Contact HR if you need help."}</p>
+        <p style="color:#6b7280;font-size:13px;">${isZh && companyName !== "Platform" ? "此連結有效期為 24 小時。如有問題請聯絡 HR 部門。" : "This link is valid for 24 hours. Contact your admin if you need help."}</p>
       </div>
     `;
   } else if (type === "new_company_registered") {
-    // 平台管理員收到新公司註冊通知
     subject = `【HR SaaS】新公司註冊待審批：${companyName}`;
     html = `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:8px;">
@@ -132,9 +134,7 @@ async function handleSendEmail(payload: any) {
     });
   }
 
-  // 發件人：如果 DNS 驗證好了用 felihr.com，否則用 onboarding@resend.dev
   const fromEmail = "HR SaaS <noreply@felihr.com>";
-
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -152,18 +152,18 @@ async function handleSendEmail(payload: any) {
 }
 
 // ─────────────────────────────────────────────
-// 創建用戶（用 Service Role Key，不影響當前 session）
+// 創建用戶
 // ─────────────────────────────────────────────
 async function handleCreateUser(payload: any) {
   const { email, password, displayName, role, companyId, employeeId, companyName, language, siteUrl } = payload;
 
-  if (!email || !password || !displayName || !role || !companyId) {
+  // ✅ 修復：平台員工 companyId 可以是 null，不強制要求
+  if (!email || !password || !displayName || !role) {
     return new Response(JSON.stringify({ error: "Missing required fields" }), {
       status: 400, headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 
-  // 用 Service Role Key 創建用戶，完全不影響當前 HR 的 session
   const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
@@ -172,7 +172,7 @@ async function handleCreateUser(payload: any) {
   const { data: userData, error: userError } = await adminClient.auth.admin.createUser({
     email,
     password,
-    email_confirm: true, // 直接確認，不需要用戶點確認郵件
+    email_confirm: true,
   });
 
   if (userError) {
@@ -183,40 +183,41 @@ async function handleCreateUser(payload: any) {
 
   const userId = userData.user.id;
 
-  // 2. 插入 user_roles
+  // 2. 插入 user_roles（companyId 可以是 null）
   const { error: roleError } = await adminClient.from("user_roles").insert([{
     user_id: userId,
     role,
     display_name: displayName,
     email: email.toLowerCase(),
-    company_id: companyId,
+    company_id: companyId || null,
   }]);
 
   if (roleError) {
-    // 清理：刪掉剛建的 auth 用戶
     await adminClient.auth.admin.deleteUser(userId);
     return new Response(JSON.stringify({ error: roleError.message }), {
       status: 500, headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 
-  // 3. 如果有關聯員工，更新 auth_user_id
+  // 3. 關聯員工記錄（如果有）
   if (employeeId) {
     await adminClient.from("employees").update({ auth_user_id: userId }).eq("id", employeeId);
   }
 
-  // 4. 如果是 employee 角色，發邀請郵件（告知帳號已建立，用忘記密碼來設密碼）
-  if (role === "employee" && companyName) {
-    const isZh = language === "zh";
-    const loginUrl = siteUrl || "https://hr-saas-nine.vercel.app";
+  // 4. 發邀請郵件
+  // 公司員工、平台員工都發邀請郵件
+  const loginUrl = siteUrl || "https://hr-saas-nine.vercel.app";
+  const isPlatformRole = role === "platform_admin" || role === "platform_staff";
+
+  if (isPlatformRole || role === "employee" || companyName) {
     await handleSendEmail({
       type: "user_invited",
       to: email,
       inviteeName: displayName,
       inviteeEmail: email,
-      companyName,
+      companyName: companyName || "Platform",
       loginUrl,
-      language,
+      language: language || "en",
     });
   }
 
@@ -238,7 +239,6 @@ serve(async (req) => {
 
   const payload = await req.json();
 
-  // 根據 action 分流
   if (payload.action === "create-user") {
     return handleCreateUser(payload);
   } else {

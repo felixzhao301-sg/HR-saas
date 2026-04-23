@@ -1,9 +1,8 @@
 // src/tabs/EmployeeDetailPage.jsx
 import { useState } from 'react'
 import { supabase } from '../supabase'
-import { emptyForm, inputClass } from '../constants'
+import { emptyForm } from '../constants'
 import { can } from '../utils/permissions'
-import Field from '../components/Field'
 import ResignModal from '../components/ResignModal'
 import WorkPassTab from './WorkPassTab'
 import PersonalDocsTab from './PersonalDocsTab'
@@ -128,75 +127,81 @@ export default function EmployeeDetailPage({
   return (
     <div>
       {/* Back button */}
-      {userRole === 'employee'
-        ? null
-        : <button onClick={onBack} className="text-blue-600 text-sm mb-4 hover:underline">{text.back}</button>}
+      {userRole !== 'employee' && (
+        <button onClick={onBack} className="text-blue-600 text-sm mb-3 hover:underline flex items-center gap-1">
+          ← {text.back}
+        </button>
+      )}
 
       <div className="bg-white rounded-xl shadow overflow-hidden">
-        {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-gray-100">
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 text-xl font-bold flex-shrink-0">
+
+        {/* ── Sticky header ── */}
+        <div className="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm">
+          {/* Employee identity row */}
+          <div className="px-4 py-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 text-base font-bold flex-shrink-0">
                 {emp.full_name?.[0]?.toUpperCase()}
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-xl font-bold text-gray-800">{emp.full_name}</h2>
+                  <h2 className="text-base font-bold text-gray-800 truncate">{emp.full_name}</h2>
                   {isResigned && (
-                    <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded-full font-medium">
-                      {zh ? '已離職' : 'Resigned'}{emp.resign_date && ` · ${emp.resign_date}`}
+                    <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded-full font-medium shrink-0">
+                      {zh ? '已離職' : 'Resigned'}
                     </span>
                   )}
                 </div>
-                <p className="text-gray-500 text-sm">{emp.position || '-'}</p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${emp.employment_type === 'full_time' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                  <span className="text-xs text-gray-400 truncate">{emp.position || '-'}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${emp.employment_type === 'full_time' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
                     {emp.employment_type === 'full_time' ? text.fullTime : text.partTime}
                   </span>
-                  {emp.resign_reason && (
-                    <span className="text-xs text-gray-400">
-                      {RESIGN_REASON_LABELS[emp.resign_reason]?.[zh ? 'zh' : 'en'] || emp.resign_reason}
-                    </span>
-                  )}
                 </div>
               </div>
             </div>
+            {/* Action buttons — compact on mobile */}
             {!isReadOnly && (
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex gap-1.5 shrink-0">
                 {can(permissions, userRole, 'employee.edit') && !isResigned && (
-                  <button onClick={startEdit} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">{text.edit}</button>
+                  <button onClick={startEdit}
+                    className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                    {text.edit}
+                  </button>
                 )}
                 {can(permissions, userRole, 'employee.edit') && !isResigned && (
-                  <button onClick={() => setShowResignModal(true)} className="px-4 py-2 text-sm bg-red-500 text-white rounded-lg hover:bg-red-600">
-                    {zh ? '標記離職' : 'Mark Resigned'}
+                  <button onClick={() => setShowResignModal(true)}
+                    className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium">
+                    {zh ? '離職' : 'Resign'}
                   </button>
                 )}
                 {can(permissions, userRole, 'employee.edit') && isResigned && (
-                  <button onClick={handleUnresign} className="px-4 py-2 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600">
-                    {zh ? '恢復在職' : 'Restore Active'}
+                  <button onClick={handleUnresign}
+                    className="px-3 py-1.5 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium">
+                    {zh ? '復職' : 'Restore'}
                   </button>
                 )}
                 {can(permissions, userRole, 'employee.delete') && (
-                  <button onClick={() => setShowDeleteConfirm(true)} className="px-4 py-2 text-sm bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300">{text.delete}</button>
+                  <button onClick={() => setShowDeleteConfirm(true)}
+                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium">
+                    {text.delete}
+                  </button>
                 )}
               </div>
             )}
           </div>
-        </div>
 
-        {/* Tab nav — desktop horizontal, mobile dropdown */}
-        <div className="border-b border-gray-200 bg-gray-50">
-          <div className="hidden sm:flex px-4 sm:px-6 overflow-x-auto">
+          {/* Tab nav */}
+          <div className="hidden sm:flex px-4 overflow-x-auto border-t border-gray-100">
             {tabs.map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-1.5
-                  ${activeTab === tab.key ? 'border-blue-600 text-blue-600 bg-white' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
+                className={`px-4 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-colors flex items-center gap-1.5
+                  ${activeTab === tab.key ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
                 <span>{tab.icon}</span><span>{tab.label}</span>
               </button>
             ))}
           </div>
-          <div className="sm:hidden px-4 py-2">
+          <div className="sm:hidden px-4 py-2 border-t border-gray-100">
             <select value={activeTab} onChange={e => setActiveTab(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
               {tabs.map(tab => <option key={tab.key} value={tab.key}>{tab.icon} {tab.label}</option>)}
@@ -204,56 +209,83 @@ export default function EmployeeDetailPage({
           </div>
         </div>
 
-        {/* Tab content */}
+        {/* ── Tab content ── */}
         <div className="p-4 sm:p-6">
           {activeTab === 'profile' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div>
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{text.basicInfo}</h3>
-                <Field label={text.fullName} value={emp.full_name} />
-                <Field label={text.dob} value={emp.date_of_birth} />
-                <Field label={text.gender} value={emp.gender === 'male' ? text.male : emp.gender === 'female' ? text.female : emp.gender} />
-                <Field label={text.nationality} value={emp.nationality} />
-                <Field label={text.race} value={raceName} />
-                <Field label={text.nric} value={emp.nric_fin} />
-                <Field label={text.isPR} value={emp.is_pr ? text.yes : text.no} />
-                {emp.is_pr && emp.pr_year && <Field label={text.prYear} value={zh ? `PR 第${emp.pr_year}年` : `PR Year ${emp.pr_year}`} />}
-                <Field label={text.address} value={emp.address} />
-                <Field label={text.personalMobile} value={emp.personal_mobile} />
-                <Field label={text.personalEmail} value={emp.personal_email} />
-              </div>
-              <div>
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{text.workInfo}</h3>
-                <Field label={text.joinDate} value={emp.join_date} />
-                {isResigned && <Field label={zh ? '離職日期' : 'Resign Date'} value={emp.resign_date} />}
-                <Field label={text.employmentType} value={emp.employment_type === 'full_time' ? text.fullTime : text.partTime} />
-                <Field label={text.position} value={emp.position} />
-                <Field label={zh ? '公司電郵' : 'Work Email'} value={emp.work_email} />
-                <Field label={text.isSeaman} value={emp.is_seaman ? text.yes : text.no} />
-                {emp.is_seaman && <Field label={text.seamanNo} value={emp.seaman_no} />}
-                {emp.is_seaman && emp.seaman_expiry && <Field label={text.seamanExpiry} value={emp.seaman_expiry} />}
-                <Field label={text.annualLeave} value={emp.annual_leave} />
-                {can(permissions, userRole, 'salary.view_all') && <>
-                  <Field label={text.basicSalary} value={emp.basic_salary ? `$${emp.basic_salary}` : null} />
-                  <Field label={text.basicAllowance} value={emp.basic_allowance ? `$${emp.basic_allowance}` : null} />
-                </>}
-              </div>
-              <div>
-                <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{text.passportInfo}</h3>
-                <Field label={text.passport} value={emp.passport_no} />
-                <Field label={text.passportIssue} value={emp.passport_issue_date} />
-                <Field label={text.passportExpiry} value={emp.passport_expiry_date} />
-              </div>
-              {can(permissions, userRole, 'salary.view_all') && (
-                <div>
-                  <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">{text.bankInfo}</h3>
-                  <Field label={text.bankName} value={emp.bank_name} />
-                  <Field label={text.bankCountry} value={emp.bank_country} />
-                  <Field label={text.bankAccountNo} value={emp.bank_account_no} />
-                  <Field label={text.bankAccountName} value={emp.bank_account_name} />
-                  <Field label={text.bankRemarks} value={emp.bank_remarks} />
+            <div className="max-w-2xl mx-auto space-y-5">
+
+              {/* Section helper component */}
+              {[
+                {
+                  title: zh ? '基本資料' : 'Personal Information',
+                  icon: '👤',
+                  rows: [
+                    { label: text.fullName,    value: emp.full_name },
+                    { label: text.dob,         value: emp.date_of_birth },
+                    { label: text.gender,      value: emp.gender === 'male' ? text.male : emp.gender === 'female' ? text.female : emp.gender },
+                    { label: text.nationality, value: emp.nationality },
+                    { label: text.race,        value: raceName },
+                    { label: text.nric,        value: emp.nric_fin },
+                    { label: text.address,     value: emp.address },
+                    { label: text.personalMobile, value: emp.personal_mobile },
+                    { label: text.personalEmail,  value: emp.personal_email },
+                  ].filter(r => r.value),
+                },
+                {
+                  title: zh ? '在職資料' : 'Employment',
+                  icon: '💼',
+                  rows: [
+                    { label: text.joinDate,       value: emp.join_date },
+                    isResigned && { label: zh ? '離職日期' : 'Resign Date', value: emp.resign_date },
+                    { label: text.employmentType, value: emp.employment_type === 'full_time' ? text.fullTime : text.partTime },
+                    { label: text.position,       value: emp.position },
+                    { label: zh ? '公司電郵' : 'Work Email', value: emp.work_email },
+                    { label: text.annualLeave,    value: emp.annual_leave ? `${emp.annual_leave} ${zh ? '天' : 'days'}` : null },
+                    emp.is_pr && { label: text.prYear, value: zh ? `PR 第${emp.pr_year}年` : `PR Year ${emp.pr_year}` },
+                    emp.is_seaman && { label: text.seamanNo,     value: emp.seaman_no },
+                    emp.is_seaman && emp.seaman_expiry && { label: text.seamanExpiry, value: emp.seaman_expiry },
+                    can(permissions, userRole, 'salary.view_all') && { label: text.basicSalary,    value: emp.basic_salary    ? `S$ ${Number(emp.basic_salary).toLocaleString()}` : null },
+                    can(permissions, userRole, 'salary.view_all') && { label: text.basicAllowance, value: emp.basic_allowance ? `S$ ${Number(emp.basic_allowance).toLocaleString()}` : null },
+                  ].filter(Boolean).filter(r => r.value),
+                },
+                {
+                  title: zh ? '護照資料' : 'Passport',
+                  icon: '📘',
+                  rows: [
+                    { label: text.passport,      value: emp.passport_no },
+                    { label: text.passportIssue, value: emp.passport_issue_date },
+                    { label: text.passportExpiry,value: emp.passport_expiry_date },
+                  ].filter(r => r.value),
+                },
+                can(permissions, userRole, 'salary.view_all') && {
+                  title: zh ? '銀行資料' : 'Bank Details',
+                  icon: '🏦',
+                  rows: [
+                    { label: text.bankName,        value: emp.bank_name },
+                    { label: text.bankCountry,     value: emp.bank_country },
+                    { label: text.bankAccountNo,   value: emp.bank_account_no },
+                    { label: text.bankAccountName, value: emp.bank_account_name },
+                    { label: text.bankRemarks,     value: emp.bank_remarks },
+                  ].filter(r => r.value),
+                },
+              ].filter(Boolean).map((section, si) => (
+                section.rows.length === 0 ? null :
+                <div key={si} className="bg-gray-50 rounded-xl overflow-hidden">
+                  {/* Section header */}
+                  <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 bg-gray-100/60">
+                    <span className="text-sm">{section.icon}</span>
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{section.title}</span>
+                  </div>
+                  {/* Rows */}
+                  {section.rows.map((row, ri) => (
+                    <div key={ri}
+                      className={`flex items-center justify-between px-4 py-3 ${ri < section.rows.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                      <span className="text-sm text-gray-500 shrink-0 mr-4">{row.label}</span>
+                      <span className="text-sm font-medium text-gray-800 text-right">{row.value || '—'}</span>
+                    </div>
+                  ))}
                 </div>
-              )}
+              ))}
             </div>
           )}
           {activeTab === 'work_pass' && <WorkPassTab employeeId={emp.id} language={language} readOnly={isReadOnly} />}
