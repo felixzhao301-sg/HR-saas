@@ -52,7 +52,8 @@ function MyProfileModal({ user, onClose, onLogout }) {
     await supabase.auth.resetPasswordForEmail(user.email)
     setResetSent(true); setTimeout(() => setResetSent(false), 5000)
   }
-  async function handleLogout() { await supabase.auth.signOut(); onLogout() }
+  // ✅ 只呼叫 onLogout()，不在這裡重複 signOut
+  function handleLogout() { onLogout() }
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4">
@@ -91,6 +92,171 @@ function MyProfileModal({ user, onClose, onLogout }) {
             {saving ? 'Saving...' : 'Save'}
           </button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// ✅ 平台公告管理 Tab
+function PlatformAnnouncementsTab({ currentUser }) {
+  const isAdmin = currentUser?.role === 'platform_admin'
+  const [announcements, setAnnouncements] = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [showForm,      setShowForm]      = useState(false)
+  const [form, setForm] = useState({ title: '', content: '', type: 'info', expires_at: '' })
+  const [saving, setSaving] = useState(false)
+  const today = new Date().toISOString().split('T')[0]
+
+  useEffect(() => { fetchAnnouncements() }, [])
+
+  async function fetchAnnouncements() {
+    setLoading(true)
+    const { data } = await supabase.from('platform_announcements')
+      .select('*').order('created_at', { ascending: false })
+    setAnnouncements(data || [])
+    setLoading(false)
+  }
+
+  async function handlePost() {
+    if (!form.title.trim()) { alert('Please enter a title'); return }
+    setSaving(true)
+    await supabase.from('platform_announcements').insert([{
+      title:      form.title.trim(),
+      content:    form.content.trim(),
+      type:       form.type,
+      is_active:  true,
+      expires_at: form.expires_at || null,
+      created_by: currentUser?.id,
+    }])
+    setForm({ title: '', content: '', type: 'info', expires_at: '' })
+    setShowForm(false); fetchAnnouncements(); setSaving(false)
+  }
+
+  async function handleToggle(ann) {
+    await supabase.from('platform_announcements').update({ is_active: !ann.is_active }).eq('id', ann.id)
+    fetchAnnouncements()
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Delete this announcement?')) return
+    await supabase.from('platform_announcements').delete().eq('id', id)
+    fetchAnnouncements()
+  }
+
+  const typeStyle = (type) => ({
+    info:    'bg-blue-100 text-blue-700',
+    warning: 'bg-amber-100 text-amber-700',
+    update:  'bg-green-100 text-green-700',
+  }[type] || 'bg-blue-100 text-blue-700')
+
+  const typeIcon = (type) => ({ info: '🔔', warning: '⚠️', update: '🆕' }[type] || '🔔')
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-800">Platform Announcements</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Broadcasts to all company dashboards</p>
+        </div>
+        {isAdmin && !showForm && (
+          <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">
+            + New Announcement
+          </button>
+        )}
+      </div>
+
+      {/* Create form */}
+      {showForm && isAdmin && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">New Platform Announcement</h3>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Title *</label>
+              <input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className={inputClass} placeholder="Announcement title..." />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Content</label>
+              <textarea value={form.content} onChange={e => setForm({ ...form, content: e.target.value })}
+                className={inputClass + ' resize-none'} rows={3} placeholder="Announcement content..." />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Type</label>
+                <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className={inputClass}>
+                  <option value="info">🔔 Info (blue)</option>
+                  <option value="warning">⚠️ Warning (amber)</option>
+                  <option value="update">🆕 Update (green)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Expires (optional)</label>
+                <input type="date" value={form.expires_at} onChange={e => setForm({ ...form, expires_at: e.target.value })} className={inputClass} />
+              </div>
+            </div>
+            {/* Preview */}
+            {form.title && (
+              <div className={`rounded-xl p-3 border text-sm ${typeStyle(form.type).replace('text-', 'border-').replace('bg-', 'bg-')} bg-opacity-30`}>
+                <span className="mr-2">{typeIcon(form.type)}</span>
+                <span className="font-semibold">{form.title}</span>
+                {form.content && <div className="text-xs mt-1 opacity-80">{form.content}</div>}
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <button onClick={() => setShowForm(false)} className="px-3 py-1.5 text-xs text-gray-600 border rounded-lg hover:bg-gray-50">Cancel</button>
+            <button onClick={handlePost} disabled={saving} className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {saving ? 'Posting...' : '📢 Publish'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      {loading ? <div className="text-sm text-gray-400 py-8 text-center">Loading...</div> : (
+        <div className="space-y-3">
+          {announcements.length === 0 && (
+            <div className="text-sm text-gray-400 py-10 text-center border-2 border-dashed rounded-xl">No announcements yet</div>
+          )}
+          {announcements.map(ann => (
+            <div key={ann.id} className={`bg-white rounded-xl border p-4 ${!ann.is_active ? 'opacity-50' : ''}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${typeStyle(ann.type)}`}>
+                      {typeIcon(ann.type)} {ann.type}
+                    </span>
+                    {!ann.is_active && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Hidden</span>}
+                    {ann.expires_at && new Date(ann.expires_at) < new Date() && (
+                      <span className="text-xs bg-red-100 text-red-500 px-2 py-0.5 rounded-full">Expired</span>
+                    )}
+                    <span className="font-semibold text-gray-800 text-sm">{ann.title}</span>
+                  </div>
+                  {ann.content && <div className="text-sm text-gray-600 whitespace-pre-wrap">{ann.content}</div>}
+                  <div className="text-xs text-gray-400 mt-1.5 flex gap-3">
+                    <span>Posted: {ann.created_at?.slice(0, 10)}</span>
+                    {ann.expires_at && <span>Expires: {ann.expires_at}</span>}
+                  </div>
+                </div>
+                {isAdmin && (
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => handleToggle(ann)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border ${ann.is_active ? 'text-gray-600 border-gray-200 hover:bg-gray-50' : 'text-blue-600 border-blue-200 hover:bg-blue-50'}`}>
+                      {ann.is_active ? 'Hide' : 'Show'}
+                    </button>
+                    <button onClick={() => handleDelete(ann.id)}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50">
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-500">
+        💡 Platform announcements appear on all company dashboards. Use <strong>Warning</strong> for maintenance notices, <strong>Update</strong> for new features, <strong>Info</strong> for general notices.
       </div>
     </div>
   )
@@ -142,19 +308,12 @@ function CompanyDetailPage({ companyId, onBack, onEnter, isAdmin }) {
       <div className="flex items-center justify-between mb-4">
         <button onClick={onBack} className="text-blue-600 text-sm hover:underline">← Companies</button>
         <div className="flex gap-2">
-          {onEnter && (
-            <button onClick={() => onEnter(company)} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">🚀 Enter</button>
-          )}
-          {isAdmin && !editMode && (
-            <button onClick={() => setEditMode(true)} className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">✏️ Edit</button>
-          )}
+          {onEnter && <button onClick={() => onEnter(company)} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">🚀 Enter</button>}
+          {isAdmin && !editMode && <button onClick={() => setEditMode(true)} className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">✏️ Edit</button>}
         </div>
       </div>
-
       <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 flex items-center gap-4">
-        <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 text-lg font-bold shrink-0">
-          {company.name?.[0]?.toUpperCase()}
-        </div>
+        <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 text-lg font-bold shrink-0">{company.name?.[0]?.toUpperCase()}</div>
         <div>
           <div className="font-bold text-gray-800 text-lg">{company.name}</div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -164,38 +323,20 @@ function CompanyDetailPage({ companyId, onBack, onEnter, isAdmin }) {
           </div>
         </div>
       </div>
-
       {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">✅ Company updated successfully</div>}
-
       {editMode ? (
         <div className="space-y-4">
           <SectionCard icon="🏢" title="Company Information">
             <div className="p-4 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Company Name *</label>
-                <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className={inputClass} />
-              </div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Company Name *</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} className={inputClass} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">UEN</label>
-                  <input value={form.uen} onChange={e => setForm({...form, uen: e.target.value})} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Phone</label>
-                  <input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className={inputClass} placeholder="+65 6123 4567" />
-                </div>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">UEN</label><input value={form.uen} onChange={e => setForm({...form, uen: e.target.value})} className={inputClass} /></div>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Phone</label><input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className={inputClass} /></div>
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Address</label>
-                <input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className={inputClass} />
-              </div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Address</label><input value={form.address} onChange={e => setForm({...form, address: e.target.value})} className={inputClass} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Postal Code</label>
-                  <input value={form.postal_code} onChange={e => setForm({...form, postal_code: e.target.value})} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Industry</label>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Postal Code</label><input value={form.postal_code} onChange={e => setForm({...form, postal_code: e.target.value})} className={inputClass} /></div>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Industry</label>
                   <select value={form.industry} onChange={e => setForm({...form, industry: e.target.value})} className={inputClass}>
                     <option value="">— Select —</option>
                     {INDUSTRY_OPTIONS.map(i => <option key={i} value={i}>{i}</option>)}
@@ -206,27 +347,16 @@ function CompanyDetailPage({ companyId, onBack, onEnter, isAdmin }) {
           </SectionCard>
           <SectionCard icon="📋" title="Subscription">
             <div className="p-4 space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Max Employees</label>
-                <input type="number" value={form.max_employees} onChange={e => setForm({...form, max_employees: e.target.value})} className={inputClass} />
-              </div>
+              <div><label className="block text-xs font-medium text-gray-600 mb-1">Max Employees</label><input type="number" value={form.max_employees} onChange={e => setForm({...form, max_employees: e.target.value})} className={inputClass} /></div>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Trial Ends</label>
-                  <input type="date" value={form.trial_ends_at} onChange={e => setForm({...form, trial_ends_at: e.target.value})} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Subscription Ends</label>
-                  <input type="date" value={form.subscription_ends_at} onChange={e => setForm({...form, subscription_ends_at: e.target.value})} className={inputClass} />
-                </div>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Trial Ends</label><input type="date" value={form.trial_ends_at} onChange={e => setForm({...form, trial_ends_at: e.target.value})} className={inputClass} /></div>
+                <div><label className="block text-xs font-medium text-gray-600 mb-1">Subscription Ends</label><input type="date" value={form.subscription_ends_at} onChange={e => setForm({...form, subscription_ends_at: e.target.value})} className={inputClass} /></div>
               </div>
             </div>
           </SectionCard>
           <div className="flex gap-2">
             <button onClick={() => setEditMode(false)} className="flex-1 py-2.5 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-medium">
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+            <button onClick={handleSave} disabled={saving} className="flex-1 py-2.5 text-sm bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 font-medium">{saving ? 'Saving...' : 'Save Changes'}</button>
           </div>
         </div>
       ) : (
@@ -308,11 +438,8 @@ function CompaniesTab({ currentUser, onEnterCompany, onViewCompany }) {
           </div>
         ))}
       </div>
-
-      <input value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="Search by company name or UEN..."
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by company name or UEN..."
         className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white mb-4" />
-
       <div className="space-y-3">
         {loading ? <div className="text-center py-10 text-gray-400 text-sm">Loading...</div>
           : filtered.length === 0 ? <div className="text-center py-10 text-gray-400 text-sm">No companies found</div>
@@ -320,13 +447,9 @@ function CompaniesTab({ currentUser, onEnterCompany, onViewCompany }) {
           <div key={company.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-blue-200 transition-colors">
             <div className="p-4 flex items-start justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-700 font-bold text-base shrink-0">
-                  {company.name?.[0]?.toUpperCase()}
-                </div>
+                <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-700 font-bold text-base shrink-0">{company.name?.[0]?.toUpperCase()}</div>
                 <div className="min-w-0">
-                  <button onClick={() => onViewCompany(company.id)} className="font-semibold text-gray-800 hover:text-blue-600 text-left truncate block w-full">
-                    {company.name}
-                  </button>
+                  <button onClick={() => onViewCompany(company.id)} className="font-semibold text-gray-800 hover:text-blue-600 text-left truncate block w-full">{company.name}</button>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(company.status)}`}>{company.status}</span>
                     <span className="text-xs text-gray-400">{company.uen}</span>
@@ -341,28 +464,16 @@ function CompaniesTab({ currentUser, onEnterCompany, onViewCompany }) {
               <span>Employees: <b className="text-gray-700">{company.max_employees ?? 20}</b></span>
             </div>
             <div className="px-4 pb-3 flex gap-2 flex-wrap border-t border-gray-50 pt-3">
-              {onEnterCompany && (
-                <button onClick={() => onEnterCompany(company)} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">🚀 Enter</button>
-              )}
+              {onEnterCompany && <button onClick={() => onEnterCompany(company)} className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">🚀 Enter</button>}
               {isAdmin && (
-                <select value={company.plan || 'trial'} onChange={e => handlePlanChange(company.id, e.target.value)}
-                  disabled={savingId === company.id}
+                <select value={company.plan || 'trial'} onChange={e => handlePlanChange(company.id, e.target.value)} disabled={savingId === company.id}
                   className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none bg-white">
                   {Object.entries(PLANS).map(([key, p]) => <option key={key} value={key}>{p.name}</option>)}
                 </select>
               )}
-              {isAdmin && company.status !== 'active' && (
-                <button onClick={() => handleStatusChange(company.id, 'active')} disabled={savingId === company.id}
-                  className="text-xs px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50">Activate</button>
-              )}
-              {isAdmin && company.status !== 'suspended' && (
-                <button onClick={() => handleStatusChange(company.id, 'suspended')} disabled={savingId === company.id}
-                  className="text-xs px-3 py-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 disabled:opacity-50">Suspend</button>
-              )}
-              {isAdmin && company.status !== 'pending' && (
-                <button onClick={() => handleStatusChange(company.id, 'pending')} disabled={savingId === company.id}
-                  className="text-xs px-3 py-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 disabled:opacity-50">Set Pending</button>
-              )}
+              {isAdmin && company.status !== 'active' && <button onClick={() => handleStatusChange(company.id, 'active')} disabled={savingId === company.id} className="text-xs px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 disabled:opacity-50">Activate</button>}
+              {isAdmin && company.status !== 'suspended' && <button onClick={() => handleStatusChange(company.id, 'suspended')} disabled={savingId === company.id} className="text-xs px-3 py-1.5 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 disabled:opacity-50">Suspend</button>}
+              {isAdmin && company.status !== 'pending' && <button onClick={() => handleStatusChange(company.id, 'pending')} disabled={savingId === company.id} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-500 rounded-lg hover:bg-gray-200 disabled:opacity-50">Set Pending</button>}
             </div>
           </div>
         ))}
@@ -435,9 +546,7 @@ function PlatformStaffTab({ currentUser }) {
           <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">+ Add Staff</button>
         )}
       </div>
-
       {success && <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">{success}</div>}
-
       {showForm && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Add Platform Staff</h3>
@@ -451,14 +560,12 @@ function PlatformStaffTab({ currentUser }) {
                 <input type={showPwd ? 'text' : 'password'} value={form.password} onChange={e => setForm({...form, password: e.target.value})} className={inputClass + ' pr-16'} placeholder="••••••" />
                 <button type="button" onClick={() => setShowPwd(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs font-medium">{showPwd ? 'Hide' : 'Show'}</button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">Staff can reset via "Forgot Password"</p>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Role *</label>
               <select value={form.role} onChange={e => setForm({...form, role: e.target.value})} className={inputClass}>
                 {PLATFORM_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
               </select>
-              <p className="text-xs text-gray-400 mt-1">{PLATFORM_ROLES.find(r => r.value === form.role)?.desc}</p>
             </div>
           </div>
           <div className="flex justify-end gap-2 mt-4">
@@ -467,7 +574,6 @@ function PlatformStaffTab({ currentUser }) {
           </div>
         </div>
       )}
-
       {editingStaff && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">Edit: {editingStaff.display_name}</h3>
@@ -488,15 +594,12 @@ function PlatformStaffTab({ currentUser }) {
           </div>
         </div>
       )}
-
       {loading ? <div className="text-sm text-gray-400 py-8 text-center">Loading...</div> : (
         <div className="space-y-2">
           {staffList.map(staff => (
             <div key={staff.user_id} className={`bg-white rounded-xl border p-4 flex items-center justify-between gap-3 ${staff.user_id === currentUser?.id ? 'border-blue-200 bg-blue-50/30' : 'border-gray-200'}`}>
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-600 shrink-0">
-                  {staff.display_name?.[0]?.toUpperCase() || '?'}
-                </div>
+                <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-bold text-gray-600 shrink-0">{staff.display_name?.[0]?.toUpperCase() || '?'}</div>
                 <div className="min-w-0">
                   <div className="font-medium text-gray-800 truncate">{staff.display_name || '—'}{staff.user_id === currentUser?.id && <span className="text-xs text-blue-500 ml-2">You</span>}</div>
                   <div className="text-xs text-gray-400 truncate">{staff.email}</div>
@@ -508,34 +611,22 @@ function PlatformStaffTab({ currentUser }) {
               {isAdmin && (
                 <div className="flex gap-2 shrink-0">
                   <button onClick={() => { setEditingStaff({...staff}); setShowForm(false) }} className="text-xs text-blue-600 hover:underline">Edit</button>
-                  {staff.user_id !== currentUser?.id && (
-                    <button onClick={() => handleDelete(staff.user_id)} className="text-xs text-red-500 hover:underline">Remove</button>
-                  )}
+                  {staff.user_id !== currentUser?.id && <button onClick={() => handleDelete(staff.user_id)} className="text-xs text-red-500 hover:underline">Remove</button>}
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
-
-      <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-xl">
-        <div className="text-xs font-semibold text-gray-600 mb-2">Role Permissions</div>
-        {PLATFORM_ROLES.map(r => (
-          <div key={r.value} className="flex items-center gap-2 text-xs text-gray-500 mb-1">
-            <span className={`px-2 py-0.5 rounded-full font-medium shrink-0 ${r.value === 'platform_admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>{r.label}</span>
-            <span>{r.desc}</span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
 
 export default function PlatformAdminPage({ onLogout, onEnterCompany }) {
-  const [activeTab, setActiveTab] = useState('companies')
+  const [activeTab,        setActiveTab]        = useState('companies')
   const [viewingCompanyId, setViewingCompanyId] = useState(null)
-  const [currentUser, setCurrentUser] = useState(null)
-  const [showProfile, setShowProfile] = useState(false)
+  const [currentUser,      setCurrentUser]      = useState(null)
+  const [showProfile,      setShowProfile]      = useState(false)
 
   useEffect(() => { fetchCurrentUser() }, [])
 
@@ -546,17 +637,27 @@ export default function PlatformAdminPage({ onLogout, onEnterCompany }) {
     setCurrentUser({ id: user.id, email: user.email, display_name: role?.display_name || '', role: role?.role || 'platform_admin' })
   }
 
-  async function handleLogout() { await supabase.auth.signOut(); onLogout() }
+  // ✅ 只做一次 signOut
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    onLogout()
+  }
 
   const displayName = currentUser?.display_name || currentUser?.email?.split('@')[0] || 'Admin'
+  const isAdmin = currentUser?.role === 'platform_admin'
+
+  // ✅ Tabs — 公告管理只給 platform_admin
+  const tabs = [
+    { key: 'companies',     label: '🏢 Companies' },
+    { key: 'staff',         label: '👥 Staff' },
+    { key: 'announcements', label: '📢 Announcements' },
+  ].filter(t => t.key !== 'announcements' || isAdmin)
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <nav className="bg-gray-900 text-white px-4 sm:px-6 py-3 flex justify-between items-center shadow sticky top-0 z-30">
         <div className="flex items-center gap-3">
-          {viewingCompanyId && (
-            <button onClick={() => setViewingCompanyId(null)} className="text-gray-400 hover:text-white text-lg">←</button>
-          )}
+          {viewingCompanyId && <button onClick={() => setViewingCompanyId(null)} className="text-gray-400 hover:text-white text-lg">←</button>}
           <div>
             <h1 className="text-base font-bold">Platform Admin</h1>
             <p className="text-gray-400 text-xs hidden sm:block">HR SaaS Management Console</p>
@@ -575,7 +676,7 @@ export default function PlatformAdminPage({ onLogout, onEnterCompany }) {
       {!viewingCompanyId && (
         <div className="bg-gray-900 border-t border-gray-700 px-4 sm:px-6">
           <div className="flex gap-1">
-            {[{ key: 'companies', label: '🏢 Companies' }, { key: 'staff', label: '👥 Staff' }].map(tab => (
+            {tabs.map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
                 className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.key ? 'border-blue-400 text-blue-400' : 'border-transparent text-gray-400 hover:text-gray-200'}`}>
                 {tab.label}
@@ -587,11 +688,13 @@ export default function PlatformAdminPage({ onLogout, onEnterCompany }) {
 
       <div className="flex-1 p-4 sm:p-6 max-w-4xl mx-auto w-full">
         {viewingCompanyId ? (
-          <CompanyDetailPage companyId={viewingCompanyId} onBack={() => setViewingCompanyId(null)} onEnter={onEnterCompany} isAdmin={currentUser?.role === 'platform_admin'} />
+          <CompanyDetailPage companyId={viewingCompanyId} onBack={() => setViewingCompanyId(null)} onEnter={onEnterCompany} isAdmin={isAdmin} />
         ) : activeTab === 'companies' ? (
           <CompaniesTab currentUser={currentUser} onEnterCompany={onEnterCompany} onViewCompany={(id) => setViewingCompanyId(id)} />
-        ) : (
+        ) : activeTab === 'staff' ? (
           <PlatformStaffTab currentUser={currentUser} />
+        ) : (
+          <PlatformAnnouncementsTab currentUser={currentUser} />
         )}
       </div>
 

@@ -1,27 +1,46 @@
 // src/components/ResignModal.jsx
-// 離職確認彈窗 — 模塊化，供 EmployeesTab 使用
 import { useState } from 'react'
 
 const RESIGN_REASONS = [
-  { value: 'voluntary',      label_zh: '自願離職',    label_en: 'Voluntary Resignation' },
-  { value: 'terminated',     label_zh: '終止合約',    label_en: 'Contract Terminated' },
-  { value: 'contract_end',   label_zh: '合約期滿',    label_en: 'Contract Ended' },
-  { value: 'retirement',     label_zh: '退休',        label_en: 'Retirement' },
-  { value: 'other',          label_zh: '其他',        label_en: 'Other' },
+  { value: 'voluntary',    label_zh: '自願離職', label_en: 'Voluntary Resignation' },
+  { value: 'terminated',  label_zh: '終止合約', label_en: 'Contract Terminated' },
+  { value: 'contract_end',label_zh: '合約期滿', label_en: 'Contract Ended' },
+  { value: 'retirement',  label_zh: '退休',     label_en: 'Retirement' },
+  { value: 'other',       label_zh: '其他',     label_en: 'Other' },
 ]
 
 export default function ResignModal({ employee, language, onConfirm, onCancel, saving }) {
   const zh = language === 'zh'
   const today = new Date().toISOString().split('T')[0]
-  const [resignDate, setResignDate] = useState(today)
+
+  const [resignDate,   setResignDate]   = useState(today)
   const [resignReason, setResignReason] = useState('voluntary')
+  // ✅ IR21 欄位 — 只對外籍員工顯示
+  const [ir21Filed,     setIr21Filed]     = useState(false)
+  const [ir21FiledDate, setIr21FiledDate] = useState(today)
+
+  // 判斷是否外籍（非新加坡人、非 PR）
+  const isForeigner = employee.nationality &&
+    employee.nationality !== 'Singapore' &&
+    !employee.is_pr
 
   function handleConfirm() {
     if (!resignDate) {
       alert(zh ? '請填寫離職日期' : 'Please enter resignation date')
       return
     }
-    onConfirm({ resign_date: resignDate, resign_reason: resignReason, status: 'resigned' })
+    if (ir21Filed && !ir21FiledDate) {
+      alert(zh ? '請填寫 IR21 呈報日期' : 'Please enter IR21 filing date')
+      return
+    }
+    onConfirm({
+      resign_date:    resignDate,
+      resign_reason:  resignReason,
+      status:         'resigned',
+      // ✅ IR21 數據一起傳出去
+      ir21_filed:      ir21Filed,
+      ir21_filed_date: ir21Filed ? ir21FiledDate : null,
+    })
   }
 
   return (
@@ -51,7 +70,6 @@ export default function ResignModal({ employee, language, onConfirm, onCancel, s
               type="date"
               value={resignDate}
               onChange={e => setResignDate(e.target.value)}
-              max={today}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
           </div>
@@ -72,6 +90,42 @@ export default function ResignModal({ employee, language, onConfirm, onCancel, s
               ))}
             </select>
           </div>
+
+          {/* ✅ IR21 — 只對外籍員工顯示 */}
+          {isForeigner && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+              <div className="text-xs font-semibold text-blue-700">
+                🌏 IR21 {zh ? '（外籍員工離職申報）' : '(Foreign Employee Clearance)'}
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={ir21Filed}
+                  onChange={e => setIr21Filed(e.target.checked)}
+                  className="w-4 h-4 accent-blue-600"
+                />
+                {zh ? 'IR21 已向 IRAS 呈報' : 'IR21 has been filed with IRAS'}
+              </label>
+              {ir21Filed && (
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    {zh ? '呈報日期 *' : 'Filing Date *'}
+                  </label>
+                  <input
+                    type="date"
+                    value={ir21FiledDate}
+                    onChange={e => setIr21FiledDate(e.target.value)}
+                    className="w-full border border-blue-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                  <p className="text-xs text-blue-500 mt-1">
+                    {zh
+                      ? '標記後此員工將在 IR8A 生成時自動排除。'
+                      : 'This employee will be excluded from IR8A generation once filed.'}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">

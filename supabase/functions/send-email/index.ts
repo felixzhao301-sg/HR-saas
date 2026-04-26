@@ -12,6 +12,15 @@ const corsHeaders = {
 };
 
 // ─────────────────────────────────────────────
+// 工具：建立 Admin Client
+// ─────────────────────────────────────────────
+function getAdminClient() {
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
+// ─────────────────────────────────────────────
 // 發郵件
 // ─────────────────────────────────────────────
 async function handleSendEmail(payload: any) {
@@ -157,18 +166,14 @@ async function handleSendEmail(payload: any) {
 async function handleCreateUser(payload: any) {
   const { email, password, displayName, role, companyId, employeeId, companyName, language, siteUrl } = payload;
 
-  // ✅ 修復：平台員工 companyId 可以是 null，不強制要求
   if (!email || !password || !displayName || !role) {
     return new Response(JSON.stringify({ error: "Missing required fields" }), {
       status: 400, headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   }
 
-  const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  const adminClient = getAdminClient();
 
-  // 1. 創建 Auth 用戶
   const { data: userData, error: userError } = await adminClient.auth.admin.createUser({
     email,
     password,
@@ -183,7 +188,6 @@ async function handleCreateUser(payload: any) {
 
   const userId = userData.user.id;
 
-  // 2. 插入 user_roles（companyId 可以是 null）
   const { error: roleError } = await adminClient.from("user_roles").insert([{
     user_id: userId,
     role,
@@ -199,13 +203,10 @@ async function handleCreateUser(payload: any) {
     });
   }
 
-  // 3. 關聯員工記錄（如果有）
   if (employeeId) {
     await adminClient.from("employees").update({ auth_user_id: userId }).eq("id", employeeId);
   }
 
-  // 4. 發邀請郵件
-  // 公司員工、平台員工都發邀請郵件
   const loginUrl = siteUrl || "https://hr-saas-nine.vercel.app";
   const isPlatformRole = role === "platform_admin" || role === "platform_staff";
 
@@ -227,6 +228,55 @@ async function handleCreateUser(payload: any) {
 }
 
 // ─────────────────────────────────────────────
+// ✅ 新增：刪除 Auth 用戶
+// 支援：
+//   1. Database Webhook 自動觸發（body.type === 'DELETE'）
+//   2. 前端手動調用單個（body.auth_user_id）
+//   3. 前端手動調用批量（body.auth_user_ids[]）
+// ─────────────────────────────────────────────
+async function handleDeleteUser(payload: any) {
+  const adminClient = getAdminClient();
+
+  let authUserIds: string[] = [];
+
+  if (payload.type === "DELETE" && payload.record) {
+    // 來自 Database Webhook — employees 行被刪除
+    const uid = payload.record.auth_user_id;
+    if (uid) authUserIds = [uid];
+  } else if (payload.auth_user_id) {
+    // 單個
+    authUserIds = [payload.auth_user_id];
+  } else if (Array.isArray(payload.auth_user_ids)) {
+    // 批量
+    authUserIds = payload.auth_user_ids.filter(Boolean);
+  }
+
+  if (authUserIds.length === 0) {
+    return new Response(
+      JSON.stringify({ success: true, message: "No auth_user_id to delete", deleted: 0 }),
+      { headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+
+  const results = await Promise.allSettled(
+    authUserIds.map(uid => adminClient.auth.admin.deleteUser(uid))
+  );
+
+  const deleted = results.filter(r => r.status === "fulfilled").length;
+  const failed  = results.filter(r => r.status === "rejected").length;
+  const errors  = results
+    .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+    .map(r => r.reason?.message || "Unknown error");
+
+  console.log(`[delete-user] deleted=${deleted} failed=${failed}`, errors);
+
+  return new Response(
+    JSON.stringify({ success: true, deleted, failed, errors }),
+    { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+  );
+}
+
+// ─────────────────────────────────────────────
 // 主路由
 // ─────────────────────────────────────────────
 serve(async (req) => {
@@ -241,6 +291,9 @@ serve(async (req) => {
 
   if (payload.action === "create-user") {
     return handleCreateUser(payload);
+  } else if (payload.action === "delete-user" || payload.type === "DELETE") {
+    // ✅ 支援前端主動調用 和 Database Webhook 觸發
+    return handleDeleteUser(payload);
   } else {
     return handleSendEmail(payload);
   }

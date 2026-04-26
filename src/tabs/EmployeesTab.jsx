@@ -1,4 +1,4 @@
-// src/tabs/EmployeesTab.jsx  (~250 lines — list + routing only)
+// src/tabs/EmployeesTab.jsx
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { EMPLOYEE_COLUMNS, emptyForm } from '../constants'
@@ -16,21 +16,24 @@ export default function EmployeesTab({
   mainTab, setMainTab,
 }) {
   const zh = language === 'zh'
-  const [employees,     setEmployees]     = useState([])
-  const [loading,       setLoading]       = useState(true)
-  const [search,        setSearch]        = useState('')
-  const [showForm,      setShowForm]      = useState(false)
-  const [saving,        setSaving]        = useState(false)
-  const [form,          setForm]          = useState(emptyForm)
-  const [sortKey,       setSortKey]       = useState('full_name')
-  const [sortDir,       setSortDir]       = useState('asc')
-  const [showBulkUpload,setShowBulkUpload]= useState(false)
-  const [showResigned,  setShowResigned]  = useState(false)
-  const [resigningEmp,  setResigningEmp]  = useState(null)
-  const [resignSaving,  setResignSaving]  = useState(false)
-  const [purgingYear,   setPurgingYear]   = useState('')
-  const [purgeConfirm,  setPurgeConfirm]  = useState(false)
-  const [purging,       setPurging]       = useState(false)
+  const [employees,      setEmployees]      = useState([])
+  const [loading,        setLoading]        = useState(true)
+  const [search,         setSearch]         = useState('')
+  const [showForm,       setShowForm]       = useState(false)
+  const [saving,         setSaving]         = useState(false)
+  const [form,           setForm]           = useState(emptyForm)
+  const [sortKey,        setSortKey]        = useState('full_name')
+  const [sortDir,        setSortDir]        = useState('asc')
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
+  const [showResigned,   setShowResigned]   = useState(false)
+  const [resigningEmp,   setResigningEmp]   = useState(null)
+  const [resignSaving,   setResignSaving]   = useState(false)
+
+  // ✅ 新：勾選式清除
+  const [showPurgePanel, setShowPurgePanel] = useState(false)
+  const [selectedToPurge,setSelectedToPurge]= useState([])   // emp ids
+  const [purgeConfirm,   setPurgeConfirm]   = useState(false)
+  const [purging,        setPurging]        = useState(false)
 
   useEffect(() => { if (companyId) fetchEmployees() }, [companyId])
 
@@ -38,9 +41,9 @@ export default function EmployeesTab({
     setLoading(true)
     const { data, error } = await supabase
       .from('employees')
-      .select('id,full_name,position,employment_type,join_date,status,resign_date')
+      .select('id,full_name,position,employment_type,join_date,status,resign_date,ir21_filed')
       .eq('company_id', companyId)
-      .order('created_at', { ascending: false })
+      .order('full_name', { ascending: true })
     if (!error) setEmployees(data || [])
     setLoading(false)
   }
@@ -61,14 +64,24 @@ export default function EmployeesTab({
     const { data: newEmp, error } = await supabase.from('employees').insert([payload]).select('id').single()
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
     if (newEmp?.id && payload.annual_leave) {
-      await supabase.from('leave_balances').upsert({ employee_id: newEmp.id, year: new Date().getFullYear(), leave_type: 'annual', entitled: Number(payload.annual_leave), carried_forward: 0, adjusted: 0, used: 0, company_id: companyId }, { onConflict: 'employee_id,year,leave_type' })
+      await supabase.from('leave_balances').upsert({
+        employee_id: newEmp.id, year: new Date().getFullYear(),
+        leave_type: 'annual', entitled: Number(payload.annual_leave),
+        carried_forward: 0, adjusted: 0, used: 0, company_id: companyId
+      }, { onConflict: 'employee_id,year,leave_type' })
     }
     setShowForm(false); setForm(emptyForm); fetchEmployees(); setSaving(false)
   }
 
   async function handleResign(payload) {
     setResignSaving(true)
-    await supabase.from('employees').update({ status: 'resigned', resign_date: payload.resign_date, resign_reason: payload.resign_reason }).eq('id', resigningEmp.id)
+    await supabase.from('employees').update({
+      status: 'resigned',
+      resign_date: payload.resign_date,
+      resign_reason: payload.resign_reason,
+      ir21_filed: payload.ir21_filed || false,
+      ir21_filed_date: payload.ir21_filed_date || null,
+    }).eq('id', resigningEmp.id)
     setResigningEmp(null); fetchEmployees(); setResignSaving(false)
   }
 
@@ -78,19 +91,46 @@ export default function EmployeesTab({
     fetchEmployees()
   }
 
-  async function handlePurgeResigned() {
-    if (!purgingYear) return
+  // ✅ 勾選式清除 — 逐個串行刪除避免 409 衝突
+  async function handlePurgeSelected() {
+    if (selectedToPurge.length === 0) return
     setPurging(true)
-    const toDelete = employees.filter(e => e.status === 'resigned' && e.resign_date && new Date(e.resign_date).getFullYear() <= Number(purgingYear))
+
+    const toDelete = employees.filter(e => selectedToPurge.includes(e.id))
+
     for (const emp of toDelete) {
+      // 1. 先刪關聯數據
       await supabase.from('leave_balances').delete().eq('employee_id', emp.id)
       await supabase.from('leave_applications').delete().eq('employee_id', emp.id)
+      await supabase.from('leave_approvers').delete().eq('employee_id', emp.id)
       await supabase.from('user_roles').delete().eq('employee_id', emp.id)
+      // 2. 最後刪員工記錄（觸發 Webhook 自動清除 auth.users）
       await supabase.from('employees').delete().eq('id', emp.id)
+      // 3. 稍等讓 Webhook 有時間處理，避免競態
+      await new Promise(r => setTimeout(r, 300))
     }
-    setPurging(false); setPurgeConfirm(false); setPurgingYear('')
+
+    setPurging(false)
+    setPurgeConfirm(false)
+    setSelectedToPurge([])
+    setShowPurgePanel(false)
     fetchEmployees()
-    alert(zh ? `已清除 ${toDelete.length} 名離職員工記錄` : `Purged ${toDelete.length} resigned employee records`)
+    alert(zh ? `已清除 ${toDelete.length} 名離職員工記錄` : `Purged ${toDelete.length} resigned employee(s)`)
+  }
+
+  function toggleSelectToPurge(id) {
+    setSelectedToPurge(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    )
+  }
+
+  function toggleSelectAll() {
+    const resignedIds = resignedEmployees.map(e => e.id)
+    if (selectedToPurge.length === resignedIds.length) {
+      setSelectedToPurge([])
+    } else {
+      setSelectedToPurge(resignedIds)
+    }
   }
 
   async function downloadTemplate() {
@@ -110,7 +150,9 @@ export default function EmployeesTab({
     const wb = xl.utils.book_new(); xl.utils.book_append_sheet(wb, ws, 'Employees'); xl.writeFile(wb, `HR_Employees_${new Date().toISOString().slice(0, 10)}.xlsx`)
   }
 
-  const resignedCount = employees.filter(e => e.status === 'resigned').length
+  const resignedEmployees = employees.filter(e => e.status === 'resigned')
+  const resignedCount = resignedEmployees.length
+
   const filtered = employees.filter(emp => {
     const matchSearch = emp.full_name?.toLowerCase().includes(search.toLowerCase()) || emp.position?.toLowerCase().includes(search.toLowerCase())
     const matchStatus = showResigned ? true : emp.status !== 'resigned'
@@ -133,13 +175,9 @@ export default function EmployeesTab({
         <EmployeeDetailPage
           employee={selectedEmployee}
           setEmployee={setSelectedEmployee}
-          language={language}
-          text={text}
-          userRole={userRole}
-          currentUserId={currentUserId}
-          permissions={permissions}
-          companyId={companyId}
-          raceOptions={raceOptions}
+          language={language} text={text} userRole={userRole}
+          currentUserId={currentUserId} permissions={permissions}
+          companyId={companyId} raceOptions={raceOptions}
           onBack={() => setSelectedEmployee(null)}
           onRefreshList={fetchEmployees}
         />
@@ -214,6 +252,7 @@ export default function EmployeesTab({
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`font-medium ${isResigned ? 'text-gray-400' : 'text-gray-800'}`}>{emp.full_name}</span>
                           {isResigned && <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{zh ? '離職' : 'Resigned'}</span>}
+                          {isResigned && emp.ir21_filed && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full">IR21 ✓</span>}
                         </div>
                         {isResigned && emp.resign_date && <div className="text-xs text-red-400 mt-0.5">{zh ? '離職：' : 'Left: '}{emp.resign_date}</div>}
                       </td>
@@ -243,25 +282,80 @@ export default function EmployeesTab({
           )}
       </div>
 
-      {/* Purge resigned */}
+      {/* ✅ 勾選式清除離職員工面板 */}
       {resignedCount > 0 && can(permissions, userRole, 'employee.delete') && (
-        <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="mt-6 border border-red-200 rounded-xl overflow-hidden">
+          <button
+            onClick={() => { setShowPurgePanel(v => !v); setSelectedToPurge([]) }}
+            className="w-full flex items-center justify-between px-4 py-3 bg-red-50 hover:bg-red-100 transition-colors">
             <div>
-              <div className="text-sm font-medium text-red-700">{zh ? '年度結束後清除離職員工' : 'Purge Resigned Employees After Year End'}</div>
-              <div className="text-xs text-red-500 mt-0.5">{zh ? `目前有 ${resignedCount} 名離職員工。薪資快照數據將保留。` : `${resignedCount} resigned employee(s). Payroll snapshots will be kept.`}</div>
+              <span className="text-sm font-medium text-red-700">
+                🗑 {zh ? '清除離職員工記錄' : 'Purge Resigned Employees'}
+              </span>
+              <span className="text-xs text-red-400 ml-2">
+                {zh ? `(${resignedCount} 名離職員工)` : `(${resignedCount} resigned)`}
+              </span>
             </div>
-            <div className="flex items-center gap-2">
-              <select value={purgingYear} onChange={e => setPurgingYear(e.target.value)} className="border border-red-300 text-red-700 rounded-lg px-2 py-1.5 text-xs bg-white focus:outline-none">
-                <option value="">{zh ? '選擇年份' : 'Select year'}</option>
-                {[2024, 2025, 2026].map(y => <option key={y} value={y}>{zh ? `清除 ${y} 年及以前` : `Purge resigned ≤ ${y}`}</option>)}
-              </select>
-              <button onClick={() => { if (purgingYear) setPurgeConfirm(true) }} disabled={!purgingYear}
-                className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40">
-                {zh ? '清除' : 'Purge'}
-              </button>
+            <span className="text-red-400 text-xs">{showPurgePanel ? '▲' : '▼'}</span>
+          </button>
+
+          {showPurgePanel && (
+            <div className="bg-white p-4">
+              <p className="text-xs text-gray-500 mb-3">
+                {zh
+                  ? '勾選要永久清除的離職員工。薪資快照數據將保留。此操作不可撤銷。'
+                  : 'Select resigned employees to permanently remove. Payroll snapshots will be kept. This cannot be undone.'}
+              </p>
+
+              {/* 全選 */}
+              <label className="flex items-center gap-2 text-xs text-gray-500 mb-2 cursor-pointer hover:text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={selectedToPurge.length === resignedEmployees.length && resignedEmployees.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 accent-red-600"
+                />
+                {zh ? '全選' : 'Select All'}
+              </label>
+
+              {/* 離職員工列表 */}
+              <div className="space-y-1 mb-4 max-h-60 overflow-y-auto">
+                {resignedEmployees.map(emp => (
+                  <label key={emp.id}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${selectedToPurge.includes(emp.id) ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-transparent hover:border-gray-200'}`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedToPurge.includes(emp.id)}
+                      onChange={() => toggleSelectToPurge(emp.id)}
+                      className="w-4 h-4 accent-red-600 flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-gray-700">{emp.full_name}</span>
+                        {emp.ir21_filed && <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded">IR21 ✓</span>}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {emp.position || '—'} · {zh ? '離職：' : 'Resigned: '}{emp.resign_date || '—'}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {/* 操作按鈕 */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">
+                  {zh ? `已選 ${selectedToPurge.length} 人` : `${selectedToPurge.length} selected`}
+                </span>
+                <button
+                  onClick={() => { if (selectedToPurge.length > 0) setPurgeConfirm(true) }}
+                  disabled={selectedToPurge.length === 0}
+                  className="px-4 py-2 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                  🗑 {zh ? `清除所選 (${selectedToPurge.length})` : `Purge Selected (${selectedToPurge.length})`}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -285,15 +379,35 @@ export default function EmployeesTab({
         </div>
       )}
 
+      {/* ✅ 確認清除彈窗 — 列出將被清除的名單 */}
       {purgeConfirm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5">
             <h3 className="font-semibold text-red-700 mb-2">⚠️ {zh ? '確認清除' : 'Confirm Purge'}</h3>
-            <p className="text-sm text-gray-600 mb-1">{zh ? `將永久刪除 ${purgingYear} 年及以前所有離職員工的基本資料。` : `This will permanently delete profile data of employees who resigned in or before ${purgingYear}.`}</p>
-            <p className="text-xs text-gray-400 mb-4">{zh ? '薪資快照記錄將保留。此操作不可撤銷。' : 'Payroll snapshots will be kept. This cannot be undone.'}</p>
+            <p className="text-sm text-gray-600 mb-2">
+              {zh ? '以下員工記錄將被永久刪除：' : 'The following employee records will be permanently deleted:'}
+            </p>
+            {/* ✅ 明確列出要刪的人 */}
+            <div className="bg-red-50 rounded-lg p-3 mb-3 max-h-40 overflow-y-auto">
+              {employees.filter(e => selectedToPurge.includes(e.id)).map(e => (
+                <div key={e.id} className="flex items-center gap-2 text-sm text-red-700 py-0.5">
+                  <span>•</span>
+                  <span className="font-medium">{e.full_name}</span>
+                  <span className="text-xs text-red-400">{e.resign_date}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mb-4">
+              {zh ? '薪資快照記錄將保留。此操作不可撤銷。' : 'Payroll snapshots will be kept. This cannot be undone.'}
+            </p>
             <div className="flex justify-end gap-2">
-              <button onClick={() => setPurgeConfirm(false)} className="px-4 py-2 text-sm text-gray-600 border rounded-lg hover:bg-gray-50">{zh ? '取消' : 'Cancel'}</button>
-              <button onClick={handlePurgeResigned} disabled={purging} className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">{purging ? '...' : (zh ? '確認刪除' : 'Delete')}</button>
+              <button onClick={() => setPurgeConfirm(false)} className="px-4 py-2 text-sm text-gray-600 border rounded-lg hover:bg-gray-50">
+                {zh ? '取消' : 'Cancel'}
+              </button>
+              <button onClick={handlePurgeSelected} disabled={purging}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50">
+                {purging ? '...' : (zh ? '確認刪除' : 'Confirm Delete')}
+              </button>
             </div>
           </div>
         </div>

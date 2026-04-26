@@ -22,6 +22,7 @@ import RegisterPage from './pages/RegisterPage'
 import MyLeaveTab from './tabs/MyLeaveTab'
 import PayrollTab from './tabs/PayrollTab'
 import CommissionTab from './tabs/CommissionTab'
+import YearEndTab from './tabs/YearEndTab'
 
 
 
@@ -185,13 +186,14 @@ function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions
     { key: 'dropdown', icon: '🏷️', zh: '種族設定', en: 'Race Settings', show: can(permissions, userRole, 'system.manage_dropdown') },
     { key: 'leavetypes', icon: '📅', zh: '假期設定', en: 'Leave Types', show: can(permissions, userRole, 'system.manage_dropdown') },
     { key: 'approvers', icon: '✅', zh: '批准人設定', en: 'Approvers', show: can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'yearend', icon: '📅', zh: '年度結算', en: 'Year-End Settlement', show: ['super_admin','hr_admin'].includes(userRole) },
     { key: 'users', icon: '👤', zh: '用戶管理', en: 'Users', show: ['super_admin', 'hr_admin'].includes(userRole) },
     { type: 'divider' },
     { key: 'logout', icon: '🚪', zh: '登出', en: 'Logout', show: true, danger: true },
   ].filter(i => i.type || i.show)
 
   const label = (item) => language === 'zh' ? item.zh : item.en
-  const settingsTabs = ['permissions', 'dropdown', 'leavetypes', 'approvers', 'users', 'settings', 'payroll', 'commission']
+  const settingsTabs = ['permissions', 'dropdown', 'leavetypes', 'approvers', 'users', 'settings', 'payroll', 'commission','yearend']
 
   return (
     <div className="relative" ref={ref}>
@@ -318,12 +320,21 @@ function App() {
   }
 
   async function handleLogout() {
+    await supabase.auth.signOut()
+    setCurrentUser(null)
+    setUserRole(null)
+    setUserDisplayName('')
+    setPermissions({})
+    setCompanyId(null)
+    setCompanyName('')
     setSelectedEmployee(null)
+    setMyEmployeeRecord(null)
     setMainTab('dashboard')
     setCompanyBlocked(false)
     setBlockReason(null)
     setTrialDaysLeft(null)
-    await supabase.auth.signOut()
+    setIsPlatformAdminMode(false)
+    setEnteredFromPlatform(false)
   }
 
   async function handleEnterCompany(company) {
@@ -377,12 +388,12 @@ function App() {
   const breadcrumbZh = {
     permissions: '權限設定', dropdown: '種族設定', leavetypes: '假期設定',
     approvers: '批准人設定', users: '用戶管理', settings: '個人設定',
-    payroll: '薪資管理', commission: '佣金管理',         // ✅ 新增
+    payroll: '薪資管理', commission: '佣金管理', yearend: '年度結算'        // ✅ 新增
   }
   const breadcrumbEn = {
     permissions: 'Permissions', dropdown: 'Race Settings', leavetypes: 'Leave Types',
     approvers: 'Approvers', users: 'Users', settings: 'My Settings',
-    payroll: 'Payroll', commission: 'Commission',         // ✅ 新增
+    payroll: 'Payroll', commission: 'Commission', yearend: 'Year-End Settlement'        // ✅ 新增
   }
 
   return (
@@ -526,6 +537,12 @@ function App() {
                 currentUserId={currentUser?.id}
                 userRole={userRole}
               />
+            </div>
+          )}
+
+          {mainTab === 'yearend' && (
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <YearEndTab language={language} companyId={companyId} userRole={userRole} />
             </div>
           )}
 

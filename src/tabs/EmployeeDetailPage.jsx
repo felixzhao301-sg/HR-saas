@@ -11,14 +11,6 @@ import FormFields from './employee/FormFields'
 import RecordsTab from './employee/RecordsTab'
 import LeaveTab from './employee/LeaveTab'
 
-const RESIGN_REASON_LABELS = {
-  voluntary:    { zh: '自願離職', en: 'Voluntary Resignation' },
-  terminated:   { zh: '終止合約', en: 'Contract Terminated' },
-  contract_end: { zh: '合約期滿', en: 'Contract Ended' },
-  retirement:   { zh: '退休',     en: 'Retirement' },
-  other:        { zh: '其他',     en: 'Other' },
-}
-
 export default function EmployeeDetailPage({
   employee, setEmployee,
   language, text, userRole, currentUserId, permissions,
@@ -29,10 +21,11 @@ export default function EmployeeDetailPage({
   const emp = employee
   const isResigned = emp.status === 'resigned'
   const isReadOnly = userRole === 'employee'
-  const hasAccount = !!emp.auth_user_id  // ← 新增
+  const hasAccount = !!emp.auth_user_id
 
   const [editMode, setEditMode] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [formErrors, setFormErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('profile')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -52,6 +45,7 @@ export default function EmployeeDetailPage({
   const raceName = raceLabel ? (zh ? raceLabel.label_zh : raceLabel.label_en) : emp.race
 
   function startEdit() {
+    setFormErrors({})
     setForm({
       full_name: emp.full_name || '', date_of_birth: emp.date_of_birth || '',
       gender: emp.gender || '', nationality: emp.nationality || '',
@@ -75,13 +69,40 @@ export default function EmployeeDetailPage({
   }
 
   async function saveEdit() {
-    if (!form.full_name || !form.date_of_birth || !form.gender || !form.nationality || !form.race || !form.join_date || !form.employment_type) {
-      alert(zh ? '請填寫所有必填欄位' : 'Please fill all required fields'); return
+    const errs = {}
+    if (!form.full_name)        errs.full_name       = zh ? '請填寫姓名'         : 'Full name is required'
+    if (!form.date_of_birth)    errs.date_of_birth   = zh ? '請填寫出生日期'     : 'Date of birth is required'
+    if (!form.gender)           errs.gender          = zh ? '請選擇性別'         : 'Gender is required'
+    if (!form.nationality)      errs.nationality     = zh ? '請選擇國籍'         : 'Nationality is required'
+    if (!form.race)             errs.race            = zh ? '請選擇種族'         : 'Race is required'
+    if (!form.nric_fin)         errs.nric_fin        = zh ? '請填寫 NRIC / FIN'  : 'NRIC / FIN is required'
+    if (!form.personal_email)   errs.personal_email  = zh ? '請填寫私人電郵'     : 'Personal email is required'
+    if (!form.join_date)        errs.join_date       = zh ? '請填寫入職日期'     : 'Join date is required'
+    if (!form.employment_type)  errs.employment_type = zh ? '請選擇僱用類型'     : 'Employment type is required'
+    if (!form.basic_salary && form.basic_salary !== 0)
+                                errs.basic_salary    = zh ? '請填寫基本薪資'     : 'Basic salary is required'
+    if (!form.bank_name)        errs.bank_name       = zh ? '請填寫銀行名稱'     : 'Bank name is required'
+    if (!form.bank_account_no)  errs.bank_account_no = zh ? '請填寫銀行帳號'     : 'Bank account number is required'
+    if (form.is_pr && !form.pr_year)
+                                errs.pr_year         = zh ? '請選擇 PR 年份'     : 'PR Year is required'
+
+    if (Object.keys(errs).length > 0) {
+      setFormErrors(errs)
+      setTimeout(() => {
+        document.querySelector('.border-red-400')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }, 50)
+      return
     }
+
+    setFormErrors({})
     setSaving(true)
     const payload = { ...form }
-    ;['basic_salary', 'basic_allowance', 'annual_leave'].forEach(k => { if (payload[k] === '') payload[k] = null })
-    ;['passport_issue_date', 'passport_expiry_date', 'date_of_birth', 'join_date', 'seaman_expiry', 'work_email'].forEach(k => { if (payload[k] === '') payload[k] = null })
+    ;['basic_salary', 'basic_allowance', 'annual_leave'].forEach(k => {
+      if (payload[k] === '') payload[k] = null
+    })
+    ;['passport_issue_date', 'passport_expiry_date', 'date_of_birth', 'join_date', 'seaman_expiry', 'work_email'].forEach(k => {
+      if (payload[k] === '') payload[k] = null
+    })
     const { error } = await supabase.from('employees').update(payload).eq('id', emp.id)
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
     setEmployee({ ...emp, ...payload }); setEditMode(false); onRefreshList(); setSaving(false)
@@ -95,7 +116,9 @@ export default function EmployeeDetailPage({
 
   async function handleResign(payload) {
     setResignSaving(true)
-    const { error } = await supabase.from('employees').update({ status: 'resigned', resign_date: payload.resign_date, resign_reason: payload.resign_reason }).eq('id', emp.id)
+    const { error } = await supabase.from('employees').update({
+      status: 'resigned', resign_date: payload.resign_date, resign_reason: payload.resign_reason
+    }).eq('id', emp.id)
     if (error) { alert('Error: ' + error.message); setResignSaving(false); return }
     setEmployee({ ...emp, status: 'resigned', resign_date: payload.resign_date, resign_reason: payload.resign_reason })
     setShowResignModal(false); onRefreshList(); setResignSaving(false)
@@ -111,13 +134,15 @@ export default function EmployeeDetailPage({
   if (editMode) {
     return (
       <div>
-        <button onClick={() => setEditMode(false)} className="text-blue-600 text-sm mb-4 hover:underline">← {text.cancel}</button>
+        <button onClick={() => { setEditMode(false); setFormErrors({}) }} className="text-blue-600 text-sm mb-4 hover:underline">← {text.cancel}</button>
         <div className="bg-white rounded-xl shadow p-6">
           <h3 className="text-lg font-semibold mb-4 text-gray-800">{text.editEmployee}</h3>
-          <FormFields f={form} setF={setForm} raceOptions={raceOptions} language={language} text={text} hasAccount={hasAccount} />
+          <FormFields f={form} setF={setForm} raceOptions={raceOptions} language={language} text={text} hasAccount={hasAccount} errors={formErrors} />
           <div className="flex justify-end gap-3 mt-6">
-            <button onClick={() => setEditMode(false)} className="px-4 py-2 text-sm text-gray-600 border rounded-lg hover:bg-gray-50">{text.cancel}</button>
-            <button onClick={saveEdit} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">{saving ? '...' : text.save}</button>
+            <button onClick={() => { setEditMode(false); setFormErrors({}) }} className="px-4 py-2 text-sm text-gray-600 border rounded-lg hover:bg-gray-50">{text.cancel}</button>
+            <button onClick={saveEdit} disabled={saving} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {saving ? '...' : text.save}
+            </button>
           </div>
         </div>
       </div>
@@ -126,7 +151,6 @@ export default function EmployeeDetailPage({
 
   return (
     <div>
-      {/* Back button */}
       {userRole !== 'employee' && (
         <button onClick={onBack} className="text-blue-600 text-sm mb-3 hover:underline flex items-center gap-1">
           ← {text.back}
@@ -137,7 +161,6 @@ export default function EmployeeDetailPage({
 
         {/* ── Sticky header ── */}
         <div className="sticky top-0 z-20 bg-white border-b border-gray-100 shadow-sm">
-          {/* Employee identity row */}
           <div className="px-4 py-3 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 text-base font-bold flex-shrink-0">
@@ -160,38 +183,25 @@ export default function EmployeeDetailPage({
                 </div>
               </div>
             </div>
-            {/* Action buttons — compact on mobile */}
             {!isReadOnly && (
               <div className="flex gap-1.5 shrink-0">
                 {can(permissions, userRole, 'employee.edit') && !isResigned && (
-                  <button onClick={startEdit}
-                    className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
-                    {text.edit}
-                  </button>
+                  <button onClick={startEdit} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">{text.edit}</button>
                 )}
                 {can(permissions, userRole, 'employee.edit') && !isResigned && (
-                  <button onClick={() => setShowResignModal(true)}
-                    className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium">
-                    {zh ? '離職' : 'Resign'}
-                  </button>
+                  <button onClick={() => setShowResignModal(true)} className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium">{zh ? '離職' : 'Resign'}</button>
                 )}
                 {can(permissions, userRole, 'employee.edit') && isResigned && (
-                  <button onClick={handleUnresign}
-                    className="px-3 py-1.5 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium">
-                    {zh ? '復職' : 'Restore'}
-                  </button>
+                  <button onClick={handleUnresign} className="px-3 py-1.5 text-xs bg-green-500 text-white rounded-lg hover:bg-green-600 font-medium">{zh ? '復職' : 'Restore'}</button>
                 )}
                 {can(permissions, userRole, 'employee.delete') && (
-                  <button onClick={() => setShowDeleteConfirm(true)}
-                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium">
-                    {text.delete}
-                  </button>
+                  <button onClick={() => setShowDeleteConfirm(true)} className="px-3 py-1.5 text-xs bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 font-medium">{text.delete}</button>
                 )}
               </div>
             )}
           </div>
 
-          {/* Tab nav */}
+          {/* Tab nav — desktop */}
           <div className="hidden sm:flex px-4 overflow-x-auto border-t border-gray-100">
             {tabs.map(tab => (
               <button key={tab.key} onClick={() => setActiveTab(tab.key)}
@@ -201,6 +211,7 @@ export default function EmployeeDetailPage({
               </button>
             ))}
           </div>
+          {/* Tab nav — mobile */}
           <div className="sm:hidden px-4 py-2 border-t border-gray-100">
             <select value={activeTab} onChange={e => setActiveTab(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400">
@@ -213,20 +224,18 @@ export default function EmployeeDetailPage({
         <div className="p-4 sm:p-6">
           {activeTab === 'profile' && (
             <div className="max-w-2xl mx-auto space-y-5">
-
-              {/* Section helper component */}
               {[
                 {
                   title: zh ? '基本資料' : 'Personal Information',
                   icon: '👤',
                   rows: [
-                    { label: text.fullName,    value: emp.full_name },
-                    { label: text.dob,         value: emp.date_of_birth },
-                    { label: text.gender,      value: emp.gender === 'male' ? text.male : emp.gender === 'female' ? text.female : emp.gender },
-                    { label: text.nationality, value: emp.nationality },
-                    { label: text.race,        value: raceName },
-                    { label: text.nric,        value: emp.nric_fin },
-                    { label: text.address,     value: emp.address },
+                    { label: text.fullName,       value: emp.full_name },
+                    { label: text.dob,            value: emp.date_of_birth },
+                    { label: text.gender,         value: emp.gender === 'male' ? text.male : emp.gender === 'female' ? text.female : emp.gender },
+                    { label: text.nationality,    value: emp.nationality },
+                    { label: text.race,           value: raceName },
+                    { label: text.nric,           value: emp.nric_fin },
+                    { label: text.address,        value: emp.address },
                     { label: text.personalMobile, value: emp.personal_mobile },
                     { label: text.personalEmail,  value: emp.personal_email },
                   ].filter(r => r.value),
@@ -252,9 +261,9 @@ export default function EmployeeDetailPage({
                   title: zh ? '護照資料' : 'Passport',
                   icon: '📘',
                   rows: [
-                    { label: text.passport,      value: emp.passport_no },
-                    { label: text.passportIssue, value: emp.passport_issue_date },
-                    { label: text.passportExpiry,value: emp.passport_expiry_date },
+                    { label: text.passport,       value: emp.passport_no },
+                    { label: text.passportIssue,  value: emp.passport_issue_date },
+                    { label: text.passportExpiry, value: emp.passport_expiry_date },
                   ].filter(r => r.value),
                 },
                 can(permissions, userRole, 'salary.view_all') && {
@@ -271,15 +280,12 @@ export default function EmployeeDetailPage({
               ].filter(Boolean).map((section, si) => (
                 section.rows.length === 0 ? null :
                 <div key={si} className="bg-gray-50 rounded-xl overflow-hidden">
-                  {/* Section header */}
                   <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-200 bg-gray-100/60">
                     <span className="text-sm">{section.icon}</span>
                     <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{section.title}</span>
                   </div>
-                  {/* Rows */}
                   {section.rows.map((row, ri) => (
-                    <div key={ri}
-                      className={`flex items-center justify-between px-4 py-3 ${ri < section.rows.length - 1 ? 'border-b border-gray-200' : ''}`}>
+                    <div key={ri} className={`flex items-center justify-between px-4 py-3 ${ri < section.rows.length - 1 ? 'border-b border-gray-200' : ''}`}>
                       <span className="text-sm text-gray-500 shrink-0 mr-4">{row.label}</span>
                       <span className="text-sm font-medium text-gray-800 text-right">{row.value || '—'}</span>
                     </div>
