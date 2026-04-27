@@ -1,3 +1,4 @@
+// src/utils/register.js
 import { supabase } from '../supabase'
 
 // ─────────────────────────────────────────────
@@ -13,7 +14,8 @@ export async function checkUENExists(uen) {
 }
 
 // ─────────────────────────────────────────────
-// 公開註冊（建立公司 + 管理員帳號 + 管理員 Profile）
+// 公開註冊（建立公司 + 管理員帳號）
+// 分離型設計：Admin 不自動建立 Employee Profile
 // ─────────────────────────────────────────────
 export async function registerCompany({ company, admin }) {
   const uenExists = await checkUENExists(company.uen)
@@ -40,14 +42,14 @@ export async function registerCompany({ company, admin }) {
     const { data: companyData, error: companyError } = await supabase
       .from('companies')
       .insert([{
-        name: company.name.trim(),
-        uen: company.uen.trim().toUpperCase(),
-        address: company.address.trim(),
-        postal_code: company.postalCode.trim(),
-        phone: company.phone.trim() || null,
-        industry: company.industry || null,
-        status: 'pending',
-        plan: 'trial',
+        name:          company.name.trim(),
+        uen:           company.uen.trim().toUpperCase(),
+        address:       company.address.trim(),
+        postal_code:   company.postalCode.trim(),
+        phone:         company.phone.trim() || null,
+        industry:      company.industry || null,
+        status:        'pending',
+        plan:          'trial',
         trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
       }])
       .select()
@@ -63,11 +65,11 @@ export async function registerCompany({ company, admin }) {
     const { error: roleError } = await supabase
       .from('user_roles')
       .insert([{
-        user_id: userId,
-        role: 'super_admin',
+        user_id:      userId,
+        role:         'super_admin',
         display_name: admin.name.trim(),
-        email: admin.email.trim().toLowerCase(),
-        company_id: companyId,
+        email:        admin.email.trim().toLowerCase(),
+        company_id:   companyId,
       }])
 
     if (roleError) {
@@ -76,35 +78,19 @@ export async function registerCompany({ company, admin }) {
       return { error: 'Failed to set up account. Please try again.' }
     }
 
-    // 4. 自動建立 Super Admin 的 Employee Profile
-    const { error: profileError } = await supabase
-      .from('employees')
-      .insert([{
-        company_id: companyId,
-        auth_user_id: userId,
-        full_name: admin.name.trim(),
-        work_email: admin.email.trim().toLowerCase(),
-        personal_email: admin.email.trim().toLowerCase(),
-        position: admin.position?.trim() || 'Director',
-        employment_type: 'full_time',
-        join_date: new Date().toISOString().split('T')[0],
-      }])
-
-    if (profileError) {
-      // Profile 建失敗不阻止註冊，HR 可之後補填
-      console.warn('[register] Profile creation failed (non-blocking):', profileError)
-    }
+    // 4. 分離型設計：Super Admin 不自動建立 Employee Profile
+    // 如需薪資功能，請登入後到「員工管理」手動新增個人員工檔案
 
     // 5. 通知平台管理員
     try {
       await supabase.functions.invoke('send-email', {
         body: {
-          type: 'new_company_registered',
-          to: 'felix.zhao301@gmail.com',
+          type:        'new_company_registered',
+          to:          'felix.zhao301@gmail.com',
           companyName: company.name.trim(),
-          companyUen: company.uen.trim(),
-          adminName: admin.name.trim(),
-          adminEmail: admin.email.trim(),
+          companyUen:  company.uen.trim(),
+          adminName:   admin.name.trim(),
+          adminEmail:  admin.email.trim(),
         },
       })
     } catch (notifyErr) {
@@ -129,14 +115,14 @@ export async function createCompanyByAdmin({ company }) {
   const { data, error } = await supabase
     .from('companies')
     .insert([{
-      name: company.name.trim(),
-      uen: company.uen.trim().toUpperCase(),
-      address: company.address?.trim() || null,
-      postal_code: company.postalCode?.trim() || null,
-      phone: company.phone?.trim() || null,
-      industry: company.industry || null,
-      status: 'active',
-      plan: 'trial',
+      name:          company.name.trim(),
+      uen:           company.uen.trim().toUpperCase(),
+      address:       company.address?.trim() || null,
+      postal_code:   company.postalCode?.trim() || null,
+      phone:         company.phone?.trim() || null,
+      industry:      company.industry || null,
+      status:        'active',
+      plan:          'trial',
       trial_ends_at: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
     }])
     .select()
