@@ -11,6 +11,7 @@ import FormFields from './employee/FormFields'
 import RecordsTab from './employee/RecordsTab'
 import LeaveTab from './employee/LeaveTab'
 
+
 export default function EmployeeDetailPage({
   employee, setEmployee,
   language, text, userRole, currentUserId, permissions,
@@ -295,7 +296,7 @@ export default function EmployeeDetailPage({
             </div>
           )}
           {activeTab === 'work_pass' && <WorkPassTab employeeId={emp.id} language={language} readOnly={isReadOnly} />}
-          {activeTab === 'personal'  && <PersonalDocsTab employeeId={emp.id} companyId={companyId} language={language} readOnly={isReadOnly} />}
+          {activeTab === 'personal'  && <PersonalDocsTab employee={emp} companyId={companyId} language={language} />}
           {activeTab === 'records'   && <RecordsTab employeeId={emp.id} language={language} text={text} readOnly={isReadOnly} permissions={permissions} userRole={userRole} />}
           {activeTab === 'co_docs'   && <CompanyDocumentsTab employeeId={emp.id} companyId={companyId} currentUserId={currentUserId} language={language} readOnly={isReadOnly} />}
           {activeTab === 'leave'     && <LeaveTab employeeId={emp.id} companyId={companyId} employeeName={emp.full_name} text={text} language={language} userRole={userRole} currentUserId={currentUserId} employeeJoinDate={emp.join_date} />}
