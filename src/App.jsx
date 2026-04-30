@@ -27,7 +27,6 @@ const CommissionTab      = lazy(() => import('./tabs/CommissionTab'))
 const YearEndTab         = lazy(() => import('./tabs/YearEndTab'))
 const SubscriptionTab    = lazy(() => import('./tabs/SubscriptionTab'))
 
-// ─── Tab Loading Fallback ─────────────────────────────────────
 function TabLoading() {
   return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
@@ -36,35 +35,77 @@ function TabLoading() {
   )
 }
 
+// ─── 公司選擇頁面 ─────────────────────────────────────────────
+function CompanySelectPage({ companies, userEmail, onSelect, onLogout, language }) {
+  const zh = language === 'zh'
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
+      <div className="bg-white rounded-2xl shadow-lg p-8 w-full max-w-sm">
+        {/* Logo */}
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold text-blue-700" style={{ fontFamily: 'Georgia, serif' }}>FelihR</h1>
+          <p className="text-xs text-gray-400 mt-1">HR Management System</p>
+        </div>
+
+        {/* User info */}
+        <div className="bg-gray-50 rounded-xl px-4 py-3 mb-6 text-center">
+          <div className="text-xs text-gray-400 mb-1">{zh ? '登入帳號' : 'Signed in as'}</div>
+          <div className="text-sm font-medium text-gray-700 truncate">{userEmail}</div>
+        </div>
+
+        <h2 className="text-base font-bold text-gray-800 mb-4">
+          {zh ? '選擇公司' : 'Select Company'}
+        </h2>
+
+        <div className="space-y-3 mb-6">
+          {companies.map((c, i) => (
+            <button
+              key={c.company_id || i}
+              onClick={() => onSelect(c)}
+              className="w-full text-left px-4 py-4 bg-white border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-bold text-base flex-shrink-0 group-hover:bg-blue-200">
+                  {c.company_name?.[0]?.toUpperCase() || 'C'}
+                </div>
+                <div className="min-w-0">
+                  <div className="font-semibold text-gray-800 truncate">{c.company_name}</div>
+                  <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1.5">
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                      c.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
+                      c.role === 'hr_admin' ? 'bg-blue-100 text-blue-700' :
+                      c.role === 'manager' ? 'bg-green-100 text-green-700' :
+                      c.role === 'employee' ? 'bg-gray-100 text-gray-600' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {c.role?.replace('_', ' ').toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+                <span className="ml-auto text-gray-300 group-hover:text-blue-500 text-xl">›</span>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <button onClick={onLogout}
+          className="w-full py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm hover:bg-gray-50 transition-colors">
+          {zh ? '登出' : 'Logout'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── 阻擋畫面 ─────────────────────────────────────────────────
-function BlockedScreen({ reason, companyName, language, onLogout }) {
+function BlockedScreen({ reason, companyName, language, onLogout, onSwitchCompany }) {
   const zh = language === 'zh'
   const messages = {
-    pending_approval: {
-      icon: '⏳',
-      title: zh ? '帳號審核中' : 'Account Pending Approval',
-      desc: zh ? '你的公司帳號正在審核中，請等待平台管理員批准。' : 'Your company account is pending approval. Please wait for platform admin review.',
-    },
-    suspended: {
-      icon: '🚫',
-      title: zh ? '帳號已停用' : 'Account Suspended',
-      desc: zh ? '你的公司帳號已被停用，請聯繫平台支援。' : 'Your company account has been suspended. Please contact platform support.',
-    },
-    trial_expired: {
-      icon: '⏰',
-      title: zh ? '試用期已結束' : 'Trial Expired',
-      desc: zh ? '試用期已結束，請升級計劃以繼續使用系統。' : 'Your trial has expired. Please upgrade your plan to continue.',
-    },
-    subscription_expired: {
-      icon: '💳',
-      title: zh ? '訂閱已過期' : 'Subscription Expired',
-      desc: zh ? '訂閱已過期，請續訂以繼續使用系統。' : 'Your subscription has expired. Please renew to continue.',
-    },
-    no_company: {
-      icon: '❓',
-      title: zh ? '找不到公司資料' : 'Company Not Found',
-      desc: zh ? '找不到公司資料，請聯繫平台支援。' : 'Company not found. Please contact platform support.',
-    },
+    pending_approval: { icon: '⏳', title: zh ? '帳號審核中' : 'Account Pending Approval', desc: zh ? '你的公司帳號正在審核中，請等待平台管理員批准。' : 'Your company account is pending approval.' },
+    suspended: { icon: '🚫', title: zh ? '帳號已停用' : 'Account Suspended', desc: zh ? '你的公司帳號已被停用，請聯繫平台支援。' : 'Your company account has been suspended.' },
+    trial_expired: { icon: '⏰', title: zh ? '試用期已結束' : 'Trial Expired', desc: zh ? '試用期已結束，請升級計劃以繼續使用系統。' : 'Your trial has expired. Please upgrade to continue.' },
+    subscription_expired: { icon: '💳', title: zh ? '訂閱已過期' : 'Subscription Expired', desc: zh ? '訂閱已過期，請續訂以繼續使用系統。' : 'Your subscription has expired. Please renew.' },
+    no_company: { icon: '❓', title: zh ? '找不到公司資料' : 'Company Not Found', desc: zh ? '找不到公司資料，請聯繫平台支援。' : 'Company not found. Please contact support.' },
   }
   const msg = messages[reason] || messages.no_company
 
@@ -72,17 +113,14 @@ function BlockedScreen({ reason, companyName, language, onLogout }) {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
       <div className="bg-white rounded-2xl shadow-lg p-8 max-w-sm w-full text-center">
         <div className="text-5xl mb-4">{msg.icon}</div>
-        {companyName && (
-          <div className="text-xs text-gray-400 mb-1 uppercase tracking-wide">{companyName}</div>
-        )}
+        {companyName && <div className="text-xs text-gray-400 mb-1 uppercase tracking-wide">{companyName}</div>}
         <h2 className="text-lg font-bold text-gray-800 mb-3">{msg.title}</h2>
         <p className="text-sm text-gray-500 mb-6 leading-relaxed">{msg.desc}</p>
         <div className="space-y-2">
-          {(reason === 'trial_expired' || reason === 'subscription_expired') && (
-            <button
-              onClick={() => {}}
+          {onSwitchCompany && (
+            <button onClick={onSwitchCompany}
               className="block w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
-              {zh ? '查看訂閱方案' : 'View Plans & Upgrade'}
+              {zh ? '切換公司' : 'Switch Company'}
             </button>
           )}
           <button onClick={onLogout}
@@ -98,29 +136,19 @@ function BlockedScreen({ reason, companyName, language, onLogout }) {
 // ─── 試用期提示條 ──────────────────────────────────────────────
 function TrialBanner({ daysLeft, language, onUpgrade }) {
   const [dismissed, setDismissed] = useState(false)
-  if (dismissed || daysLeft === null) return null
-  if (daysLeft > 30) return null
-
+  if (dismissed || daysLeft === null || daysLeft > 30) return null
   const zh = language === 'zh'
   const isUrgent = daysLeft <= 7
   const isWarning = daysLeft <= 14
-
   return (
-    <div className={`px-4 py-2 flex items-center justify-between text-xs ${
-      isUrgent ? 'bg-red-50 border-b border-red-200 text-red-700'
-      : isWarning ? 'bg-amber-50 border-b border-amber-200 text-amber-700'
-      : 'bg-blue-50 border-b border-blue-200 text-blue-700'
-    }`}>
+    <div className={`px-4 py-2 flex items-center justify-between text-xs ${isUrgent ? 'bg-red-50 border-b border-red-200 text-red-700' : isWarning ? 'bg-amber-50 border-b border-amber-200 text-amber-700' : 'bg-blue-50 border-b border-blue-200 text-blue-700'}`}>
       <span>
         {isUrgent ? '🚨' : isWarning ? '⚠️' : '💡'}
         {' '}
-        {zh
-          ? `試用期還剩 ${daysLeft} 天，到期後系統將暫停使用。`
-          : `Trial expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Upgrade to keep access.`}
+        {zh ? `試用期還剩 ${daysLeft} 天，到期後系統將暫停使用。` : `Trial expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Upgrade to keep access.`}
       </span>
       <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-        <button onClick={onUpgrade}
-          className={`font-semibold underline ${isUrgent ? 'text-red-700' : isWarning ? 'text-amber-700' : 'text-blue-700'}`}>
+        <button onClick={onUpgrade} className={`font-semibold underline ${isUrgent ? 'text-red-700' : isWarning ? 'text-amber-700' : 'text-blue-700'}`}>
           {zh ? '查看方案' : 'View Plans'}
         </button>
         <button onClick={() => setDismissed(true)} className="opacity-50 hover:opacity-100">✕</button>
@@ -134,13 +162,7 @@ function BottomNav({ mainTab, setMainTab, userRole, language, myEmployeeRecord, 
   const isAdmin = ['super_admin', 'hr_admin', 'hr_staff', 'manager'].includes(userRole)
   const tabs = [
     { key: 'dashboard', icon: '🏠', zh: '首頁', en: 'Home', ms: 'Utama' },
-    {
-      key: 'employees',
-      icon: userRole === 'employee' ? '👤' : '👥',
-      zh: userRole === 'employee' ? '我的資料' : '員工',
-      en: userRole === 'employee' ? 'My Profile' : 'Employees',
-      ms: userRole === 'employee' ? 'Profil' : 'Pekerja'
-    },
+    { key: 'employees', icon: userRole === 'employee' ? '👤' : '👥', zh: userRole === 'employee' ? '我的資料' : '員工', en: userRole === 'employee' ? 'My Profile' : 'Employees', ms: userRole === 'employee' ? 'Profil' : 'Pekerja' },
     { key: 'myleave', icon: '🗓️', zh: '我的假期', en: 'My Leave', ms: 'Cuti Saya' },
     ...(isAdmin ? [{ key: 'leave', icon: '📋', zh: '年假管理', en: 'Leave Mgmt', ms: 'Urus Cuti' }] : []),
     ...(isAdmin ? [{ key: 'payroll', icon: '💰', zh: '薪資', en: 'Payroll', ms: 'Gaji' }] : []),
@@ -148,26 +170,18 @@ function BottomNav({ mainTab, setMainTab, userRole, language, myEmployeeRecord, 
   const label = (tab) => language === 'zh' ? tab.zh : language === 'ms' ? tab.ms : tab.en
 
   function handleClick(tab) {
-    if (tab.key === 'employees' && userRole === 'employee' && myEmployeeRecord) {
-      setSelectedEmployee(myEmployeeRecord)
-    } else if (tab.key === 'employees' && userRole !== 'employee') {
-      setSelectedEmployee(null)
-    }
+    if (tab.key === 'employees' && userRole === 'employee' && myEmployeeRecord) setSelectedEmployee(myEmployeeRecord)
+    else if (tab.key === 'employees' && userRole !== 'employee') setSelectedEmployee(null)
     setMainTab(tab.key)
   }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="flex">
         {tabs.map(tab => (
           <button key={tab.key} onClick={() => handleClick(tab)}
-            className={`flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] relative transition-colors ${
-              mainTab === tab.key ? 'text-blue-600' : 'text-gray-400'
-            }`}>
-            {mainTab === tab.key && (
-              <span className="absolute top-0 left-1/4 right-1/4 h-0.5 bg-blue-600 rounded-full" />
-            )}
+            className={`flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] relative transition-colors ${mainTab === tab.key ? 'text-blue-600' : 'text-gray-400'}`}>
+            {mainTab === tab.key && <span className="absolute top-0 left-1/4 right-1/4 h-0.5 bg-blue-600 rounded-full" />}
             <span className="text-xl mb-0.5">{tab.icon}</span>
             <span className="text-xs font-medium">{label(tab)}</span>
           </button>
@@ -178,7 +192,7 @@ function BottomNav({ mainTab, setMainTab, userRole, language, myEmployeeRecord, 
 }
 
 // ─── 設定下拉 ─────────────────────────────────────────────────
-function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions, userDisplayName, currentUser, onLogout }) {
+function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions, userDisplayName, currentUser, onLogout, onSwitchCompany, hasMultipleCompanies }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -194,6 +208,8 @@ function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions
     { type: 'info' },
     { type: 'divider' },
     { key: 'settings',    icon: '🔑', zh: '個人設定',   en: 'My Settings',   show: true },
+    // ✅ 切換公司按鈕（只有多公司用戶才顯示）
+    ...(hasMultipleCompanies ? [{ key: 'switch_company', icon: '🏢', zh: '切換公司', en: 'Switch Company', show: true }] : []),
     { type: 'divider' },
     { key: 'payroll',     icon: '💰', zh: '薪資管理',   en: 'Payroll',       show: isAdmin },
     { key: 'commission',  icon: '📊', zh: '佣金管理',   en: 'Commission',    show: isAdmin },
@@ -216,9 +232,7 @@ function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(v => !v)}
-        className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-colors ${
-          open ? 'bg-white text-blue-700 border-white' : 'bg-blue-600 border-blue-400 text-white hover:bg-blue-800'
-        }`}>
+        className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-colors ${open ? 'bg-white text-blue-700 border-white' : 'bg-blue-600 border-blue-400 text-white hover:bg-blue-800'}`}>
         <span className="text-base font-bold">{open ? '✕' : '☰'}</span>
       </button>
       {open && (
@@ -233,9 +247,15 @@ function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions
             )
             return (
               <button key={item.key}
-                onClick={() => { item.key === 'logout' ? onLogout() : setMainTab(item.key); setOpen(false) }}
+                onClick={() => {
+                  if (item.key === 'logout') onLogout()
+                  else if (item.key === 'switch_company') onSwitchCompany()
+                  else setMainTab(item.key)
+                  setOpen(false)
+                }}
                 className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${
                   item.danger ? 'text-red-500 hover:bg-red-50'
+                  : item.key === 'switch_company' ? 'text-blue-600 hover:bg-blue-50'
                   : mainTab === item.key ? 'text-blue-600 font-medium bg-blue-50'
                   : 'text-gray-700 hover:bg-gray-50'
                 }`}>
@@ -276,6 +296,10 @@ function App() {
   const [blockReason, setBlockReason] = useState(null)
   const [trialDaysLeft, setTrialDaysLeft] = useState(null)
 
+  // ✅ 多公司相關狀態
+  const [userCompanies, setUserCompanies] = useState([])       // 用戶的所有公司
+  const [showCompanySelect, setShowCompanySelect] = useState(false) // 顯示公司選擇頁
+
   const text = i18n[language] || i18n.en
 
   useEffect(() => {
@@ -292,37 +316,106 @@ function App() {
   }, [])
 
   async function loadUserRole(userId) {
+    // 檢查是否平台管理員
     const isPA = await isPlatformAdmin(userId)
     if (isPA) { setIsPlatformAdminMode(true); setAuthLoading(false); return }
 
-    const { data } = await supabase.from('user_roles').select('role,display_name,email,company_id').eq('user_id', userId).single()
-    const role = data?.role || null
-    setUserRole(role)
-    setUserDisplayName(data?.display_name || '')
+    // ✅ 查詢該用戶的所有公司
+    const { data: roles } = await supabase
+      .from('user_roles')
+      .select('user_id, company_id, role, display_name, email, companies(id, name, status, plan, trial_ends_at, subscription_ends_at)')
+      .eq('user_id', userId)
 
-    if (data?.company_id) {
-      setCompanyId(data.company_id)
-      const company = await getCompanySubscription(data.company_id)
-      if (company) { setCompanyName(company.name); setCompanyData(company) }
-      const { valid, reason } = checkCompanyValid(company)
-      if (!valid) { setCompanyBlocked(true); setBlockReason(reason); setAuthLoading(false); return }
-      const daysLeft = getTrialDaysLeft(company)
-      setTrialDaysLeft(daysLeft)
+    if (!roles || roles.length === 0) {
+      setAuthLoading(false)
+      return
     }
 
-    const perms = await loadPermissions(data.company_id, role)
+    // 整理公司列表
+    const companies = roles.map(r => ({
+      company_id: r.company_id,
+      company_name: r.companies?.name || '',
+      role: r.role,
+      display_name: r.display_name,
+      email: r.email,
+      company: r.companies,
+    }))
+
+    setUserCompanies(companies)
+
+    // ✅ 如果只有一個公司，直接進入
+    if (companies.length === 1) {
+      await enterCompany(companies[0], userId)
+    } else {
+      // 多個公司，顯示選擇頁
+      setShowCompanySelect(true)
+      setAuthLoading(false)
+    }
+  }
+
+  // ✅ 進入某個公司
+  async function enterCompany(companyRecord, userId) {
+    const role = companyRecord.role
+    const company = companyRecord.company
+
+    setUserRole(role)
+    setUserDisplayName(companyRecord.display_name || '')
+    setCompanyId(companyRecord.company_id)
+    setCompanyName(companyRecord.company_name)
+    setCompanyData(company)
+    setShowCompanySelect(false)
+
+    // 檢查公司狀態
+    const { valid, reason } = checkCompanyValid(company)
+    if (!valid) {
+      setCompanyBlocked(true)
+      setBlockReason(reason)
+      setAuthLoading(false)
+      return
+    }
+
+    const daysLeft = getTrialDaysLeft(company)
+    setTrialDaysLeft(daysLeft)
+
+    const perms = await loadPermissions(companyRecord.company_id, role)
     setPermissions(perms)
     setAuthLoading(false)
     fetchRaceOptions()
 
-    const { data: empData } = await supabase.from('employees').select('*').eq('auth_user_id', userId).maybeSingle()
+    // 找員工記錄
+    const uid = userId || (await supabase.auth.getUser()).data.user?.id
+    const { data: empData } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('auth_user_id', uid)
+      .eq('company_id', companyRecord.company_id)
+      .maybeSingle()
+
     if (empData) {
       setMyEmployeeRecord(empData)
       setSelectedEmployee(empData)
       setMainTab(role === 'employee' ? 'employees' : 'dashboard')
     } else {
+      setMyEmployeeRecord(null)
+      setSelectedEmployee(null)
       setMainTab('dashboard')
     }
+  }
+
+  // ✅ 切換公司
+  function handleSwitchCompany() {
+    setShowCompanySelect(true)
+    setCompanyId(null)
+    setCompanyName('')
+    setCompanyData(null)
+    setUserRole(null)
+    setPermissions({})
+    setMyEmployeeRecord(null)
+    setSelectedEmployee(null)
+    setCompanyBlocked(false)
+    setBlockReason(null)
+    setTrialDaysLeft(null)
+    setMainTab('dashboard')
   }
 
   async function handleLogout() {
@@ -332,6 +425,7 @@ function App() {
     setSelectedEmployee(null); setMyEmployeeRecord(null)
     setMainTab('dashboard'); setCompanyBlocked(false); setBlockReason(null)
     setTrialDaysLeft(null); setIsPlatformAdminMode(false); setEnteredFromPlatform(false)
+    setUserCompanies([]); setShowCompanySelect(false)
   }
 
   async function handleEnterCompany(company) {
@@ -348,6 +442,7 @@ function App() {
     if (data) setRaceOptions(data)
   }
 
+  // ── Render guards ──
   if (authLoading) return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-gray-400 text-sm">{language === 'zh' ? '載入中...' : 'Loading...'}</div>
@@ -357,11 +452,28 @@ function App() {
   if (showRegister) return <RegisterPage language={language} onBackToLogin={() => setShowRegister(false)} />
   if (resetPasswordMode) return <ResetPasswordPage language={language} onDone={() => { setResetPasswordMode(false); supabase.auth.signOut() }} />
   if (!currentUser) return <LoginPage language={language} setLanguage={setLanguage} onRegister={() => setShowRegister(true)} />
-  if (companyBlocked) return <BlockedScreen reason={blockReason} companyName={companyName} language={language} onLogout={handleLogout} />
+
+  // ✅ 顯示公司選擇頁
+  if (showCompanySelect && userCompanies.length > 0) return (
+    <CompanySelectPage
+      companies={userCompanies}
+      userEmail={currentUser.email}
+      language={language}
+      onSelect={(c) => enterCompany(c, currentUser.id)}
+      onLogout={handleLogout}
+    />
+  )
+
+  if (companyBlocked) return (
+    <BlockedScreen
+      reason={blockReason} companyName={companyName}
+      language={language} onLogout={handleLogout}
+      onSwitchCompany={userCompanies.length > 1 ? handleSwitchCompany : null}
+    />
+  )
 
   const settingsTabs = ['permissions','dropdown','leavetypes','approvers','users','settings','payroll','commission','yearend','subscription']
   const isSettingsTab = settingsTabs.includes(mainTab)
-
   const breadcrumbZh = { permissions:'權限設定', dropdown:'種族設定', leavetypes:'假期設定', approvers:'批准人設定', users:'用戶管理', settings:'個人設定', payroll:'薪資管理', commission:'佣金管理', yearend:'年度結算', subscription:'訂閱管理' }
   const breadcrumbEn = { permissions:'Permissions', dropdown:'Race Settings', leavetypes:'Leave Types', approvers:'Approvers', users:'Users', settings:'My Settings', payroll:'Payroll', commission:'Commission', yearend:'Year-End Settlement', subscription:'Subscription' }
 
@@ -391,9 +503,14 @@ function App() {
             <option value="en">EN</option>
             <option value="ms">BM</option>
           </select>
-          <SettingsDropdown language={language} userRole={userRole} mainTab={mainTab}
+          <SettingsDropdown
+            language={language} userRole={userRole} mainTab={mainTab}
             setMainTab={setMainTab} permissions={permissions}
-            userDisplayName={userDisplayName} currentUser={currentUser} onLogout={handleLogout} />
+            userDisplayName={userDisplayName} currentUser={currentUser}
+            onLogout={handleLogout}
+            onSwitchCompany={handleSwitchCompany}
+            hasMultipleCompanies={userCompanies.length > 1}
+          />
         </div>
       </nav>
 
@@ -449,8 +566,7 @@ function App() {
             )}
             {mainTab === 'commission' && (
               <div className="bg-white rounded-xl shadow overflow-hidden">
-                <CommissionTab language={language} companyId={companyId}
-                  currentUserId={currentUser?.id} userRole={userRole} />
+                <CommissionTab language={language} companyId={companyId} currentUserId={currentUser?.id} userRole={userRole} />
               </div>
             )}
             {mainTab === 'permissions' && (
