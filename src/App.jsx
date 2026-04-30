@@ -23,8 +23,7 @@ import MyLeaveTab from './tabs/MyLeaveTab'
 import PayrollTab from './tabs/PayrollTab'
 import CommissionTab from './tabs/CommissionTab'
 import YearEndTab from './tabs/YearEndTab'
-
-
+import SubscriptionTab from './tabs/SubscriptionTab'   // ✅ 新增
 
 // ─── 阻擋畫面 ─────────────────────────────────────────────────
 function BlockedScreen({ reason, companyName, language, onLogout }) {
@@ -69,10 +68,11 @@ function BlockedScreen({ reason, companyName, language, onLogout }) {
         <p className="text-sm text-gray-500 mb-6 leading-relaxed">{msg.desc}</p>
         <div className="space-y-2">
           {(reason === 'trial_expired' || reason === 'subscription_expired') && (
-            <a href="mailto:support@felihr.com"
+            <button
+              onClick={() => {/* trigger subscription tab */}}
               className="block w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors">
-              {zh ? '聯繫升級' : 'Contact to Upgrade'}
-            </a>
+              {zh ? '查看訂閱方案' : 'View Plans & Upgrade'}
+            </button>
           )}
           <button onClick={onLogout}
             className="block w-full py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm hover:bg-gray-50 transition-colors">
@@ -85,15 +85,14 @@ function BlockedScreen({ reason, companyName, language, onLogout }) {
 }
 
 // ─── 試用期提示條 ──────────────────────────────────────────────
-function TrialBanner({ daysLeft, language }) {
+function TrialBanner({ daysLeft, language, onUpgrade }) {
   const [dismissed, setDismissed] = useState(false)
   if (dismissed || daysLeft === null) return null
+  if (daysLeft > 30) return null
 
   const zh = language === 'zh'
   const isUrgent = daysLeft <= 7
   const isWarning = daysLeft <= 14
-
-  if (daysLeft > 30) return null
 
   return (
     <div className={`px-4 py-2 flex items-center justify-between text-xs ${
@@ -109,10 +108,11 @@ function TrialBanner({ daysLeft, language }) {
           : `Trial expires in ${daysLeft} day${daysLeft === 1 ? '' : 's'}. Upgrade to keep access.`}
       </span>
       <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-        <a href="mailto:support@felihr.com"
+        <button
+          onClick={onUpgrade}
           className={`font-semibold underline ${isUrgent ? 'text-red-700' : isWarning ? 'text-amber-700' : 'text-blue-700'}`}>
-          {zh ? '升級' : 'Upgrade'}
-        </a>
+          {zh ? '查看方案' : 'View Plans'}
+        </button>
         <button onClick={() => setDismissed(true)} className="opacity-50 hover:opacity-100">✕</button>
       </div>
     </div>
@@ -133,10 +133,10 @@ function BottomNav({ mainTab, setMainTab, userRole, language, myEmployeeRecord, 
     },
     { key: 'myleave', icon: '🗓️', zh: '我的假期', en: 'My Leave', ms: 'Cuti Saya' },
     ...(isAdmin ? [{ key: 'leave', icon: '📋', zh: '年假管理', en: 'Leave Mgmt', ms: 'Urus Cuti' }] : []),
-    // ✅ 新增：薪資相關 Tab（只給 admin 角色看）
     ...(isAdmin ? [{ key: 'payroll', icon: '💰', zh: '薪資', en: 'Payroll', ms: 'Gaji' }] : []),
   ]
   const label = (tab) => language === 'zh' ? tab.zh : language === 'ms' ? tab.ms : tab.en
+
   function handleClick(tab) {
     if (tab.key === 'employees' && userRole === 'employee' && myEmployeeRecord) {
       setSelectedEmployee(myEmployeeRecord)
@@ -145,13 +145,19 @@ function BottomNav({ mainTab, setMainTab, userRole, language, myEmployeeRecord, 
     }
     setMainTab(tab.key)
   }
+
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+    <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="flex">
         {tabs.map(tab => (
           <button key={tab.key} onClick={() => handleClick(tab)}
-            className={`flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] relative transition-colors ${mainTab === tab.key ? 'text-blue-600' : 'text-gray-400'}`}>
-            {mainTab === tab.key && <span className="absolute top-0 left-1/4 right-1/4 h-0.5 bg-blue-600 rounded-full" />}
+            className={`flex-1 flex flex-col items-center justify-center py-2 min-h-[56px] relative transition-colors ${
+              mainTab === tab.key ? 'text-blue-600' : 'text-gray-400'
+            }`}>
+            {mainTab === tab.key && (
+              <span className="absolute top-0 left-1/4 right-1/4 h-0.5 bg-blue-600 rounded-full" />
+            )}
             <span className="text-xl mb-0.5">{tab.icon}</span>
             <span className="text-xs font-medium">{label(tab)}</span>
           </button>
@@ -165,6 +171,7 @@ function BottomNav({ mainTab, setMainTab, userRole, language, myEmployeeRecord, 
 function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions, userDisplayName, currentUser, onLogout }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
+
   useEffect(() => {
     function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', handle)
@@ -178,27 +185,31 @@ function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions
     { type: 'divider' },
     { key: 'settings', icon: '🔑', zh: '個人設定', en: 'My Settings', show: true },
     { type: 'divider' },
-    // ✅ 新增：薪資與佣金入口（放在設定下拉選單裡）
-    { key: 'payroll',    icon: '💰', zh: '薪資管理',   en: 'Payroll',    show: isAdmin },
-    { key: 'commission', icon: '📊', zh: '佣金管理',   en: 'Commission', show: isAdmin },
+    { key: 'payroll',      icon: '💰', zh: '薪資管理',   en: 'Payroll',      show: isAdmin },
+    { key: 'commission',   icon: '📊', zh: '佣金管理',   en: 'Commission',   show: isAdmin },
     { type: 'divider' },
-    { key: 'permissions', icon: '🛡️', zh: '權限設定', en: 'Permissions', show: can(permissions, userRole, 'system.manage_dropdown') },
-    { key: 'dropdown', icon: '🏷️', zh: '種族設定', en: 'Race Settings', show: can(permissions, userRole, 'system.manage_dropdown') },
-    { key: 'leavetypes', icon: '📅', zh: '假期設定', en: 'Leave Types', show: can(permissions, userRole, 'system.manage_dropdown') },
-    { key: 'approvers', icon: '✅', zh: '批准人設定', en: 'Approvers', show: can(permissions, userRole, 'system.manage_dropdown') },
-    { key: 'yearend', icon: '📅', zh: '年度結算', en: 'Year-End Settlement', show: ['super_admin','hr_admin'].includes(userRole) },
-    { key: 'users', icon: '👤', zh: '用戶管理', en: 'Users', show: ['super_admin', 'hr_admin'].includes(userRole) },
+    { key: 'permissions',  icon: '🛡️', zh: '權限設定',  en: 'Permissions',  show: can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'dropdown',     icon: '🏷️', zh: '種族設定',  en: 'Race Settings',show: can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'leavetypes',   icon: '📅', zh: '假期設定',   en: 'Leave Types',  show: can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'approvers',    icon: '✅', zh: '批准人設定', en: 'Approvers',    show: can(permissions, userRole, 'system.manage_dropdown') },
+    { key: 'yearend',      icon: '📅', zh: '年度結算',   en: 'Year-End',     show: ['super_admin','hr_admin'].includes(userRole) },
+    { key: 'users',        icon: '👤', zh: '用戶管理',   en: 'Users',        show: ['super_admin','hr_admin'].includes(userRole) },
     { type: 'divider' },
-    { key: 'logout', icon: '🚪', zh: '登出', en: 'Logout', show: true, danger: true },
+    // ✅ 訂閱管理入口
+    { key: 'subscription', icon: '💳', zh: '訂閱管理',   en: 'Subscription', show: ['super_admin'].includes(userRole) },
+    { type: 'divider' },
+    { key: 'logout',       icon: '🚪', zh: '登出',       en: 'Logout',       show: true, danger: true },
   ].filter(i => i.type || i.show)
 
   const label = (item) => language === 'zh' ? item.zh : item.en
-  const settingsTabs = ['permissions', 'dropdown', 'leavetypes', 'approvers', 'users', 'settings', 'payroll', 'commission','yearend']
+  const settingsTabs = ['permissions','dropdown','leavetypes','approvers','users','settings','payroll','commission','yearend','subscription']
 
   return (
     <div className="relative" ref={ref}>
       <button onClick={() => setOpen(v => !v)}
-        className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-colors ${open ? 'bg-white text-blue-700 border-white' : 'bg-blue-600 border-blue-400 text-white hover:bg-blue-800'}`}>
+        className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-colors ${
+          open ? 'bg-white text-blue-700 border-white' : 'bg-blue-600 border-blue-400 text-white hover:bg-blue-800'
+        }`}>
         <span className="text-base font-bold">{open ? '✕' : '☰'}</span>
       </button>
       {open && (
@@ -213,11 +224,20 @@ function SettingsDropdown({ language, userRole, mainTab, setMainTab, permissions
             )
             return (
               <button key={item.key}
-                onClick={() => { item.key === 'logout' ? onLogout() : setMainTab(item.key); setOpen(false) }}
-                className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${item.danger ? 'text-red-500 hover:bg-red-50' : mainTab === item.key ? 'text-blue-600 font-medium bg-blue-50' : 'text-gray-700 hover:bg-gray-50'}`}>
+                onClick={() => {
+                  item.key === 'logout' ? onLogout() : setMainTab(item.key)
+                  setOpen(false)
+                }}
+                className={`w-full text-left px-4 py-2.5 text-sm flex items-center gap-3 transition-colors ${
+                  item.danger ? 'text-red-500 hover:bg-red-50'
+                  : mainTab === item.key ? 'text-blue-600 font-medium bg-blue-50'
+                  : 'text-gray-700 hover:bg-gray-50'
+                }`}>
                 <span>{item.icon}</span>
                 <span>{label(item)}</span>
-                {settingsTabs.includes(item.key) && mainTab === item.key && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />}
+                {settingsTabs.includes(item.key) && mainTab === item.key && (
+                  <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-600" />
+                )}
               </button>
             )
           })}
@@ -241,6 +261,7 @@ function App() {
   const [myEmployeeRecord, setMyEmployeeRecord] = useState(null)
   const [companyId, setCompanyId] = useState(null)
   const [companyName, setCompanyName] = useState('')
+  const [companyData, setCompanyData] = useState(null)       // ✅ 新增：完整 company 資料
   const [resetPasswordMode, setResetPasswordMode] = useState(false)
   const [showRegister, setShowRegister] = useState(false)
   const [isPlatformAdminMode, setIsPlatformAdminMode] = useState(false)
@@ -251,7 +272,6 @@ function App() {
   const [blockReason, setBlockReason] = useState(null)
   const [trialDaysLeft, setTrialDaysLeft] = useState(null)
 
-  // ── i18n：語言文字從 src/i18n/index.js 載入 ──
   const text = i18n[language] || i18n.en
 
   useEffect(() => {
@@ -261,9 +281,7 @@ function App() {
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (_event === 'PASSWORD_RECOVERY') {
-        setResetPasswordMode(true)
-        setAuthLoading(false)
-        return
+        setResetPasswordMode(true); setAuthLoading(false); return
       }
       if (session?.user) { setCurrentUser(session.user); loadUserRole(session.user.id) }
       else { setCurrentUser(null); setUserRole(null); setPermissions({}); setAuthLoading(false) }
@@ -284,20 +302,17 @@ function App() {
       setCompanyId(data.company_id)
 
       const company = await getCompanySubscription(data.company_id)
-      if (company) setCompanyName(company.name)
+      if (company) {
+        setCompanyName(company.name)
+        setCompanyData(company)                              // ✅ 儲存完整 company 資料
+      }
       const { valid, reason } = checkCompanyValid(company)
       if (!valid) {
-        setCompanyBlocked(true)
-        setBlockReason(reason)
-        setAuthLoading(false)
-        return
+        setCompanyBlocked(true); setBlockReason(reason); setAuthLoading(false); return
       }
 
       const daysLeft = getTrialDaysLeft(company)
       setTrialDaysLeft(daysLeft)
-
-      const { data: co } = await supabase.from('companies').select('name').eq('id', data.company_id).single()
-      if (co) setCompanyName(co.name)
     }
 
     const perms = await loadPermissions(data.company_id, role)
@@ -309,11 +324,7 @@ function App() {
     if (empData) {
       setMyEmployeeRecord(empData)
       setSelectedEmployee(empData)
-      if (role === 'employee') {
-        setMainTab('employees')
-      } else {
-        setMainTab('dashboard')
-      }
+      setMainTab(role === 'employee' ? 'employees' : 'dashboard')
     } else {
       setMainTab('dashboard')
     }
@@ -321,35 +332,20 @@ function App() {
 
   async function handleLogout() {
     await supabase.auth.signOut()
-    setCurrentUser(null)
-    setUserRole(null)
-    setUserDisplayName('')
-    setPermissions({})
-    setCompanyId(null)
-    setCompanyName('')
-    setSelectedEmployee(null)
-    setMyEmployeeRecord(null)
-    setMainTab('dashboard')
-    setCompanyBlocked(false)
-    setBlockReason(null)
-    setTrialDaysLeft(null)
-    setIsPlatformAdminMode(false)
-    setEnteredFromPlatform(false)
+    setCurrentUser(null); setUserRole(null); setUserDisplayName(''); setPermissions({})
+    setCompanyId(null); setCompanyName(''); setCompanyData(null)
+    setSelectedEmployee(null); setMyEmployeeRecord(null)
+    setMainTab('dashboard'); setCompanyBlocked(false); setBlockReason(null)
+    setTrialDaysLeft(null); setIsPlatformAdminMode(false); setEnteredFromPlatform(false)
   }
 
   async function handleEnterCompany(company) {
-    setIsPlatformAdminMode(false)
-    setEnteredFromPlatform(true)
-    setCompanyId(company.id)
-    setCompanyName(company.name)
-    setUserRole('super_admin')
-    setUserDisplayName('Platform Admin')
+    setIsPlatformAdminMode(false); setEnteredFromPlatform(true)
+    setCompanyId(company.id); setCompanyName(company.name); setCompanyData(company)
+    setUserRole('super_admin'); setUserDisplayName('Platform Admin')
     const perms = await loadPermissions(company.id, 'super_admin')
-    setPermissions(perms)
-    fetchRaceOptions()
-    setMainTab('dashboard')
-    setTrialDaysLeft(null)
-    setCompanyBlocked(false)
+    setPermissions(perms); fetchRaceOptions()
+    setMainTab('dashboard'); setTrialDaysLeft(null); setCompanyBlocked(false)
   }
 
   async function fetchRaceOptions() {
@@ -363,37 +359,36 @@ function App() {
     </div>
   )
   if (isPlatformAdminMode) return (
-    <PlatformAdminPage
-      onLogout={handleLogout}
-      onEnterCompany={handleEnterCompany}
-    />
-  ) 
-  if (showRegister) return <RegisterPage language={language} onBackToLogin={() => setShowRegister(false)} />
+    <PlatformAdminPage onLogout={handleLogout} onEnterCompany={handleEnterCompany} />
+  )
+  if (showRegister) return (
+    <RegisterPage language={language} onBackToLogin={() => setShowRegister(false)} />
+  )
   if (resetPasswordMode) return (
     <ResetPasswordPage language={language} onDone={() => { setResetPasswordMode(false); supabase.auth.signOut() }} />
   )
   if (!currentUser) return (
     <LoginPage language={language} setLanguage={setLanguage} onRegister={() => setShowRegister(true)} />
   )
-
   if (companyBlocked) return (
     <BlockedScreen reason={blockReason} companyName={companyName} language={language} onLogout={handleLogout} />
   )
 
-  // ✅ 新增 payroll 和 commission 到 settingsTabs（使它們顯示麵包屑導航）
-  const settingsTabs = ['permissions', 'dropdown', 'leavetypes', 'approvers', 'users', 'settings', 'payroll', 'commission']
+  // ✅ settingsTabs 加入 subscription
+  const settingsTabs = ['permissions','dropdown','leavetypes','approvers','users','settings','payroll','commission','yearend','subscription']
   const isSettingsTab = settingsTabs.includes(mainTab)
 
-  // ✅ 麵包屑 label map 也要加
   const breadcrumbZh = {
-    permissions: '權限設定', dropdown: '種族設定', leavetypes: '假期設定',
-    approvers: '批准人設定', users: '用戶管理', settings: '個人設定',
-    payroll: '薪資管理', commission: '佣金管理', yearend: '年度結算'        // ✅ 新增
+    permissions:'權限設定', dropdown:'種族設定', leavetypes:'假期設定',
+    approvers:'批准人設定', users:'用戶管理', settings:'個人設定',
+    payroll:'薪資管理', commission:'佣金管理', yearend:'年度結算',
+    subscription:'訂閱管理',   // ✅ 新增
   }
   const breadcrumbEn = {
-    permissions: 'Permissions', dropdown: 'Race Settings', leavetypes: 'Leave Types',
-    approvers: 'Approvers', users: 'Users', settings: 'My Settings',
-    payroll: 'Payroll', commission: 'Commission', yearend: 'Year-End Settlement'        // ✅ 新增
+    permissions:'Permissions', dropdown:'Race Settings', leavetypes:'Leave Types',
+    approvers:'Approvers', users:'Users', settings:'My Settings',
+    payroll:'Payroll', commission:'Commission', yearend:'Year-End Settlement',
+    subscription:'Subscription',   // ✅ 新增
   }
 
   return (
@@ -413,11 +408,8 @@ function App() {
           {enteredFromPlatform && (
             <button
               onClick={() => {
-                setIsPlatformAdminMode(true)
-                setEnteredFromPlatform(false)
-                setCompanyId(null)
-                setUserRole(null)
-                setPermissions({})
+                setIsPlatformAdminMode(true); setEnteredFromPlatform(false)
+                setCompanyId(null); setUserRole(null); setPermissions({})
               }}
               className="text-xs bg-yellow-400 text-gray-900 px-2 py-1 rounded-lg font-medium hover:bg-yellow-300 whitespace-nowrap">
               ← Platform
@@ -439,9 +431,13 @@ function App() {
       </nav>
 
       {/* ── 試用期提示條 ── */}
-      <TrialBanner daysLeft={trialDaysLeft} language={language} />
+      <TrialBanner
+        daysLeft={trialDaysLeft}
+        language={language}
+        onUpgrade={() => setMainTab('subscription')}   // ✅ 點擊直接跳訂閱頁
+      />
 
-      {/* ── 設定頁面麵包屑（包含 payroll / commission）── */}
+      {/* ── 麵包屑 ── */}
       {isSettingsTab && (
         <div className="bg-blue-50 border-b border-blue-100 px-4 py-2 flex items-center gap-2">
           <button onClick={() => setMainTab('dashboard')} className="text-blue-600 text-sm hover:underline">
@@ -458,6 +454,10 @@ function App() {
       <div className="flex-1 overflow-y-auto pb-16">
         <div className="p-4 max-w-5xl mx-auto">
 
+          {mainTab === 'dashboard' && (
+            <DashboardTab text={text} language={language} userRole={userRole}
+              currentUserId={currentUser?.id} selectedEmployeeId={myEmployeeRecord?.id} companyId={companyId} />
+          )}
           {mainTab === 'employees' && (
             <EmployeesTab
               text={text} language={language} userRole={userRole}
@@ -469,9 +469,27 @@ function App() {
               mainTab={mainTab} setMainTab={setMainTab}
             />
           )}
-          {mainTab === 'dashboard' && (
-            <DashboardTab text={text} language={language} userRole={userRole}
-              currentUserId={currentUser?.id} selectedEmployeeId={myEmployeeRecord?.id} companyId={companyId} />
+          {mainTab === 'myleave' && (
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <MyLeaveTab text={text} language={language} currentUserId={currentUser?.id} companyId={companyId} />
+            </div>
+          )}
+          {mainTab === 'leave' && (
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <LeaveManagementTab text={text} language={language} userRole={userRole} currentUserId={currentUser?.id} companyId={companyId} />
+            </div>
+          )}
+          {mainTab === 'payroll' && (
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <PayrollTab language={language} companyId={companyId} companyName={companyName}
+                currentUserId={currentUser?.id} userRole={userRole} permissions={permissions} />
+            </div>
+          )}
+          {mainTab === 'commission' && (
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <CommissionTab language={language} companyId={companyId}
+                currentUserId={currentUser?.id} userRole={userRole} />
+            </div>
           )}
           {mainTab === 'permissions' && (
             <div className="bg-white rounded-xl shadow overflow-hidden">
@@ -486,16 +504,6 @@ function App() {
           {mainTab === 'approvers' && (
             <div className="bg-white rounded-xl shadow overflow-hidden">
               <LeaveApproversTab text={text} language={language} companyId={companyId} />
-            </div>
-          )}
-          {mainTab === 'myleave' && (
-            <div className="bg-white rounded-xl shadow overflow-hidden">
-              <MyLeaveTab text={text} language={language} currentUserId={currentUser?.id} companyId={companyId} />
-            </div>
-          )}
-          {mainTab === 'leave' && (
-            <div className="bg-white rounded-xl shadow overflow-hidden">
-              <LeaveManagementTab text={text} language={language} userRole={userRole} currentUserId={currentUser?.id} companyId={companyId} />
             </div>
           )}
           {mainTab === 'users' && (
@@ -513,36 +521,19 @@ function App() {
               <DropdownSettingsTab text={text} language={language} onRaceUpdated={fetchRaceOptions} companyId={companyId} />
             </div>
           )}
-
-          {/* ✅ 新增：薪資管理 */}
-          {mainTab === 'payroll' && (
-            <div className="bg-white rounded-xl shadow overflow-hidden">
-              <PayrollTab
-                language={language}
-                companyId={companyId}
-                companyName={companyName}
-                currentUserId={currentUser?.id}
-                userRole={userRole}
-                permissions={permissions}
-              />
-            </div>
-          )}
-
-          {/* ✅ 新增：佣金管理 */}
-          {mainTab === 'commission' && (
-            <div className="bg-white rounded-xl shadow overflow-hidden">
-              <CommissionTab
-                language={language}
-                companyId={companyId}
-                currentUserId={currentUser?.id}
-                userRole={userRole}
-              />
-            </div>
-          )}
-
           {mainTab === 'yearend' && (
             <div className="bg-white rounded-xl shadow overflow-hidden">
               <YearEndTab language={language} companyId={companyId} userRole={userRole} />
+            </div>
+          )}
+
+          {/* ✅ 訂閱管理 */}
+          {mainTab === 'subscription' && (
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+                <SubscriptionTab
+                company={companyData || { id: companyId, name: companyName, status: 'trial', plan: 'starter' }}
+                userRole={userRole}
+              />
             </div>
           )}
 
